@@ -33,9 +33,8 @@ function placeBarricade(lv) {
     const off = (k - (n - 1) / 2) * 1.08, x = cx + rx * off, z = cz + rz * off;
     if (blockedAt(x, z, 0.5) || inSafe(x, z, 0.5)) continue;
     let near = false; for (const b of barricades) if (Math.hypot(b.x - x, b.z - z) < 0.9) near = true; if (near) continue;
-    const mtl = stone ? mat(0x8a8884, { map: TEX.stone }) : mat(0xa07a50, { map: TEX.crate });
-    const h = stone ? 1.2 : 1, mesh = new T.Mesh(G.box, mtl);
-    mesh.scale.set(1, h, stone ? 0.9 : 1); mesh.rotation.y = player.yaw; mesh.position.set(x, 2.5, z); scene.add(mesh);
+    const h = stone ? 1.2 : 1, mesh = barricadeMesh(stone);
+    mesh.rotation.y = player.yaw; mesh.position.set(x, 2.5, z); scene.add(mesh);
     const c = Math.abs(Math.cos(player.yaw)), s = Math.abs(Math.sin(player.yaw)), w = (c + s * (stone ? 0.9 : 1)) / 2, d = (s + c * (stone ? 0.9 : 1)) / 2;
     barricades.push({ mesh, x, z, x0: x - w, x1: x + w, z0: z - d, z1: z + d, h, hp, max: hp, drop: 0, shake: 0, stone });
     placed++;
@@ -143,7 +142,7 @@ function tracer(a, b, col) {
   const l = new T.Line(geo, m); scene.add(l); tracers.push({ l, t: 0.06 });
 }
 function updateTracers(dt) { for (let i = tracers.length - 1; i >= 0; i--) { const tr = tracers[i]; tr.t -= dt; tr.l.material.opacity = Math.max(0, tr.t / 0.06); if (tr.t <= 0) { scene.remove(tr.l); tr.l.geometry.dispose(); tr.l.material.dispose(); tracers.splice(i, 1); } } }
-function muzzleWorld(out) { const u = vm && vm.userData.muzzle; out.copy(u || new T.Vector3(0, 0, -0.6)); vm.localToWorld(out); return out; }
+function muzzleWorld(out) { const g = vmModels[SV.cur] || vm, u = g.userData.muzzle; if (u) out.copy(u); else out.set(0, 0, -0.6); g.localToWorld(out); return out; }
 function flashMuzzle(strength) { muzzleLight.intensity = 2.6 * (strength || 1); muzzleT = 0.05; muzzleWorld(_m); PG.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.05, 1, 0.75, 0.35, 0.35 * (strength || 1), 0, 0, 0, 1); }
 function explode(p, dmg, R, patch) {
   boomLight.position.copy(p); boomLight.position.y = Math.max(1, p.y); boomLight.intensity = 6;
@@ -320,65 +319,14 @@ function useAbility(i) {
   const A = ABILITIES[i];
   if (abCd[i] > 0) { AU.play('deny', 0.2); return; }
   if (i === 0) { if (!placeBarricade(lv)) { showMsg('Hier ist kein Platz'); AU.play('deny'); return; } }
-  else if (i === 1) { abOn[1] = A.dur[lv - 1]; showMsg('Doppelter Schaden!'); AU.play('amp'); }
-  else if (i === 2) { abOn[2] = A.dur[lv - 1]; showMsg('Verbrenner aktiv'); AU.play('ignite'); }
-  else if (i === 3) { const h = A.heal[lv - 1]; player.hp = Math.min(player.maxHp, player.hp + h); healFx(); AU.play('heal'); showMsg(`+${h} Leben`); }
+  else if (i === 1) { abOn[1] = A.dur[lv - 1]; showMsg('Doppelter Schaden!'); AU.play('amp'); fxRing(player.pos.x, player.pos.z, 0xffc040, 4); }
+  else if (i === 2) { abOn[2] = A.dur[lv - 1]; showMsg('Verbrenner aktiv'); AU.play('ignite'); fxRing(player.pos.x, player.pos.z, 0xff5a20, 4); fireBurst(player.pos.x, 0.2, player.pos.z, 24, 1.2); }
+  else if (i === 3) { const h = A.heal[lv - 1]; player.hp = Math.min(player.maxHp, player.hp + h); healFx(); AU.play('heal'); showMsg(`+${h} Leben`); fxRing(player.pos.x, player.pos.z, 0x5ad18a, 3); }
   abCd[i] = A.cd[lv - 1];
 }
 function updateAbilities(dt) { for (let i = 0; i < 4; i++) { if (abCd[i] > 0) abCd[i] = Math.max(0, abCd[i] - dt); if (abOn[i] > 0) abOn[i] = Math.max(0, abOn[i] - dt); } }
 
-// ---------- Waffen in der Hand ----------
-function vmMat(c, sh, map) { return new T.MeshPhongMaterial({ color: c, map: map || null, bumpMap: map || null, bumpScale: 0.3, emissive: c, emissiveIntensity: 0.28, shininess: sh || 20, specular: 0x333333 }); }
-function buildViewModels() {
-  vm = new T.Group(); camera.add(vm);
-  const wood = vmMat(0xd8a070, 20, TX.wood), dwood = vmMat(0x9a7050, 20, TX.wood), steel = vmMat(0xe0e4ec, 80, TX.metal), dsteel = vmMat(0x5a5e66, 50, TX.metal), black = vmMat(0x1c1d20, 30), olive = vmMat(0x6a7650, 20, TX.metal), leather = vmMat(0x5a3a26), str = vmMat(0xd8d0c0), red = vmMat(0x8a1a14);
-  const add = (id, base, muzzle, build) => {
-    const g = new T.Group(); build(g); g.visible = false; g.userData = { base, muzzle }; vm.add(g); vmModels[id] = g;
-    // eigene Materialien je Waffe, damit sie in ihrer Stufen-Farbe leuchten kann
-    g.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); if (o.material.emissive) { o.userData.e0 = o.material.emissive.getHex(); o.userData.ei0 = o.material.emissiveIntensity; } } });
-  };
-  const cylZ = (g, m, x, y, z, r, l) => { part(g, G.cyl, m, x, y, z, r * 2, l, r * 2).rotation.x = Math.PI / 2; };
-  const melee = { p: [0.44, -0.5, -0.8], r: [-0.95, 0.25, -0.55] }, gun = { p: [0.24, -0.26, -0.48], r: [0, 0.04, 0] };
-  add('holz', melee, null, g => { part(g, G.box, dwood, 0, 0, 0, 0.05, 0.18, 0.05); part(g, G.box, dwood, 0, 0.1, 0, 0.2, 0.035, 0.06); part(g, G.box, wood, 0, 0.47, 0, 0.07, 0.7, 0.025); });
-  add('eisen', melee, null, g => { part(g, G.box, leather, 0, 0, 0, 0.045, 0.2, 0.045); part(g, G.sph, steel, 0, -0.11, 0, 0.06, 0.06, 0.06); part(g, G.box, steel, 0, 0.11, 0, 0.24, 0.035, 0.06); part(g, G.box, steel, 0, 0.55, 0, 0.075, 0.85, 0.02); });
-  add('axt', { p: [0.44, -0.52, -0.78], r: [-0.9, 0.3, -0.5] }, null, g => { part(g, G.box, wood, 0, 0.25, 0, 0.045, 0.85, 0.045); part(g, G.box, steel, 0.1, 0.6, 0, 0.26, 0.18, 0.03); part(g, G.box, dsteel, -0.05, 0.6, 0, 0.07, 0.1, 0.05); });
-  add('schleuder', { p: [0.16, -0.3, -0.5], r: [0.15, 0, 0.1] }, new T.Vector3(0, 0.2, -0.1), g => { part(g, G.box, wood, 0, 0, 0, 0.04, 0.18, 0.04); part(g, G.box, wood, -0.04, 0.14, 0, 0.03, 0.12, 0.03).rotation.z = 0.5; part(g, G.box, wood, 0.04, 0.14, 0, 0.03, 0.12, 0.03).rotation.z = -0.5; part(g, G.box, leather, 0, 0.19, 0.03, 0.14, 0.015, 0.015); part(g, G.sphLo, vmMat(0x7a7a76), 0, 0.19, 0.05, 0.05, 0.05, 0.05); });
-  add('bogen', { p: [0.12, -0.2, -0.62], r: [0, 0, 0.25] }, new T.Vector3(0, 0, -0.7), g => {
-    const b = new T.Group(); b.rotation.y = -Math.PI / 2; g.add(b);
-    const arc = new T.Mesh(new T.TorusGeometry(0.42, 0.018, 6, 24, Math.PI * 0.85), wood); arc.rotation.z = 0.575 * Math.PI; b.add(arc);
-    part(b, G.box, str, -0.098, 0, 0, 0.006, 0.8, 0.006); part(b, G.box, wood, -0.4, 0, 0, 0.6, 0.012, 0.012);
-  });
-  add('armbrust', gun, new T.Vector3(0, 0.07, -0.55), g => { part(g, G.box, wood, 0, 0, -0.2, 0.07, 0.08, 0.6); part(g, G.box, steel, 0, 0.04, -0.45, 0.6, 0.03, 0.04); part(g, G.box, str, 0, 0.05, -0.38, 0.55, 0.006, 0.006); part(g, G.box, dsteel, 0, 0.07, -0.3, 0.015, 0.015, 0.35); });
-  add('pistole', gun, new T.Vector3(0, 0.03, -0.22), g => { part(g, G.box, black, 0, -0.06, 0.02, 0.05, 0.14, 0.07).rotation.x = 0.25; part(g, G.box, dsteel, 0, 0.03, -0.08, 0.055, 0.065, 0.26); });
-  add('schrot', gun, new T.Vector3(0, 0.03, -0.78), g => { cylZ(g, dsteel, 0, 0.03, -0.42, 0.025, 0.72); part(g, G.box, wood, 0, -0.01, -0.35, 0.06, 0.05, 0.22); part(g, G.box, black, 0, 0.0, -0.05, 0.07, 0.1, 0.2); part(g, G.box, wood, 0, -0.03, 0.12, 0.06, 0.1, 0.3); });
-  add('gewehr', gun, new T.Vector3(0, 0.02, -0.72), g => { part(g, G.box, black, 0, 0, -0.15, 0.07, 0.1, 0.42); cylZ(g, dsteel, 0, 0.02, -0.5, 0.015, 0.4); part(g, G.box, black, 0, -0.11, -0.12, 0.05, 0.16, 0.07).rotation.x = 0.25; part(g, G.box, black, 0, -0.02, 0.15, 0.06, 0.1, 0.25); part(g, G.box, dsteel, 0, 0.08, -0.15, 0.03, 0.04, 0.16); });
-  add('rakete', { p: [0.3, -0.25, -0.35], r: [0, 0.03, 0] }, new T.Vector3(0, 0.05, -0.72), g => { cylZ(g, olive, 0, 0.05, -0.2, 0.09, 1.0); part(g, G.box, black, 0, -0.09, -0.05, 0.05, 0.14, 0.06); part(g, G.cone, red, 0, 0.05, -0.66, 0.12, 0.14, 0.12).rotation.x = -Math.PI / 2; part(g, G.box, black, -0.08, 0.12, -0.2, 0.03, 0.06, 0.1); });
-  add('feuer', { p: [0.26, -0.28, -0.45], r: [0, 0.04, 0] }, new T.Vector3(0, 0, -0.64), g => { cylZ(g, dsteel, 0, 0, -0.35, 0.035, 0.55); part(g, G.box, black, 0, -0.02, -0.02, 0.09, 0.1, 0.25); part(g, G.cyl, red, 0.12, -0.05, 0.02, 0.16, 0.35, 0.16); part(g, G.sphLo, mat(0xff9a3a, { basic: true }), 0, -0.03, -0.64, 0.03, 0.03, 0.03); });
-}
-function equipVM(id) {
-  for (const k in vmModels) vmModels[k].visible = k === id;
-  tintVM(id);
-  swapT = 0.25; fireCd = Math.max(fireCd, 0.15);
-}
-function updateVM(dt) {
-  const w = curWeapon(), m = vmModels[w.id]; if (!m) return;
-  vmKick = Math.max(0, vmKick - dt * 6); swapT = Math.max(0, swapT - dt);
-  if (vmSwing > 0) vmSwing = Math.max(0, vmSwing - dt / 0.32);
-  const b = m.userData.base, ma = player.moveAmt;
-  let px = b.p[0] + Math.sin(player.bob) * 0.014 * ma, py = b.p[1] - Math.abs(Math.cos(player.bob)) * 0.012 * ma - swapT * 1.2, pz = b.p[2] + vmKick * 0.07;
-  let rx = b.r[0] + vmKick * 0.18, ry = b.r[1], rz = b.r[2];
-  if (w.kind === 'melee' && vmSwing > 0) { const t = 1 - vmSwing, s = Math.sin(t * Math.PI); rz += (t * 2.4 - 0.6) * s * 1.4; rx -= s * 0.9; px -= s * 0.28; py += s * 0.05; }
-  m.position.set(px, py, pz); m.rotation.set(rx, ry, rz);
-}
-function tintVM(id) {
-  const g = vmModels[id]; if (!g) return;
-  const lv = SV.weapons[id] || 1;
-  g.traverse(o => {
-    if (!o.isMesh || !o.material.emissive) return;
-    if (lv > 1) { o.material.emissive.setHex(LV_HEX[lv - 1]); o.material.emissiveIntensity = 0.5; }
-    else { o.material.emissive.setHex(o.userData.e0); o.material.emissiveIntensity = o.userData.ei0; }
-  });
-}
+// Waffen in der Hand: siehe viewmodels.js
 
 // ---------- Granaten ----------
 function throwGrenade() {

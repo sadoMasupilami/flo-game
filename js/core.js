@@ -11,6 +11,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const pick = a => a[(Math.random() * a.length) | 0];
 const fmt = n => Math.floor(n).toLocaleString('de-DE');
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
+// wird beim Veröffentlichen von GitHub ersetzt (Kurz-ID der Version und Datum)
+const VERSION = '__VERSION__', BUILD_DATE = '__BUILD_DATE__';
 
 // Gleiche Welt bei jedem Start
 let seed = 20261025;

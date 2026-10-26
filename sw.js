@@ -16,6 +16,7 @@ const FILES = [
   'js/models.js',
   'js/entities.js',
   'js/combat.js',
+  'js/viewmodels.js',
   'js/erfolge.js',
   'js/endlos.js',
   'js/main.js',
@@ -31,8 +32,10 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Eigene Dateien immer beim Server nachfragen (kein veralteter Zwischenspeicher), fremde normal laden
+  const own = new URL(e.request.url).origin === self.location.origin;
   e.respondWith(
-    fetch(e.request)
+    (own ? fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }) : fetch(e.request))
       .then(res => {
         if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
         return res;

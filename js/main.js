@@ -225,7 +225,8 @@ function updateHUD() {
     const l = abLv(i); b.hidden = !l; if (!l) return;
     const p = Math.round(abCd[i] / ABILITIES[i].cd[l - 1] * 100) / 100;
     if (b._p !== p) { b._p = p; b.style.setProperty('--p', p); }
-    b.classList.toggle('on', abOn[i] > 0);
+    b.classList.toggle('on', abOn[i] > 0); b.classList.toggle('cool', abCd[i] > 0);
+    const tt = abCd[i] > 0 ? String(Math.ceil(abCd[i])) : ''; const te = b.querySelector('.t'); if (te.textContent !== tt) te.textContent = tt;
     const em = b.querySelector('em'); if (em.textContent !== String(l)) { em.textContent = l; em.className = 'l' + l; }
   });
   $('enter').hidden = !(safeIdx() >= 0 && GS === 'play');
@@ -358,6 +359,7 @@ function showMenu() {
   if (has) { const s = lsGet(SAVE_KEY); $('saveInfo').textContent = `Spielstand: ${SHELTERS[s.checkpoint || 0].name} (Gebiet ${(s.checkpoint || 0) + 1}) · ${fmt(s.money || 0)} Münzen · ${(DIFF[s.diff] || DIFF.normal).name}`; }
   else $('saveInfo').textContent = '';
   if (endlessBest()) $('saveInfo').textContent += ` · Endlos-Rekord: ${endlessBest()} Wellen`;
+  $('verInfo').textContent = VERSION.startsWith('__') ? 'Entwicklungsversion' : `Version ${VERSION} vom ${BUILD_DATE}`;
   $('menu').hidden = false;
   scene.fog.color.setHex(AREAS[5].fog); scene.background.setHex(AREAS[5].fog); scene.fog.density = AREAS[5].dens;
 }

@@ -153,6 +153,15 @@ function buildTextures() {
     blobs(g, s, 12, ['#6a5a4a'], 2, 6, 0.4);
     grain(g, s, 10);
   });
+  // feine Maserung und gebürstetes Metall für die Waffen in der Hand (ruhiger als die Welt-Texturen)
+  mkTex('vmwood', 128, (g, s) => {
+    g.fillStyle = '#b0b0b0'; g.fillRect(0, 0, s, s);
+    strokes(g, s, 160, ['rgba(70,70,70,.35)', 'rgba(255,255,255,.18)'], 60, 1.2, Math.PI / 2, 0.06, 0.8);
+  });
+  mkTex('vmmetal', 128, (g, s) => {
+    g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, s, s);
+    strokes(g, s, 220, ['rgba(255,255,255,.16)', 'rgba(0,0,0,.1)'], 70, 1, 0, 0.03, 0.8);
+  });
   // Nebel: weiße Wolken mit Transparenz
   TX.mist = canvasTex(256, 256, (g, s) => {
     g.clearRect(0, 0, s, s);
