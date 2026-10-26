@@ -115,7 +115,7 @@ const MT = {
   koloss: { name: 'Koloss', hp: 210, spd: 1.9, dmg: 24, r: 1.0, range: 2.6, cd: 1.7, gold: 30, skin: 0x5a4038, eye: 0xff3b1f, w: 0.2 },
   schreier: { name: 'Schreier', hp: 40, spd: 6.0, dmg: 10, r: 0.45, range: 1.6, cd: 0.85, gold: 11, skin: 0x8a8780, eye: 0xe8f4ff, w: 0.6 },
   platzer: { name: 'Platzer', hp: 24, spd: 4.8, dmg: 30, r: 0.6, range: 1.7, cd: 1, gold: 9, skin: 0x9a6a3a, eye: 0xffd040, w: 0.45 },
-  kraehe: { name: 'Krähe', hp: 14, spd: 6.5, dmg: 6, r: 0.4, range: 1.5, cd: 1.3, gold: 4, skin: 0x2a2a30, eye: 0xff3030, w: 0.35, fly: true },
+  kraehe: { name: 'Krähe', hp: 10, spd: 5.2, dmg: 5, r: 0.4, range: 1.6, cd: 1.6, gold: 5, skin: 0x2a2a30, eye: 0xff3030, w: 0.2, fly: true },
   schild: { name: 'Schildträger', hp: 120, spd: 2.1, dmg: 15, r: 0.65, range: 1.9, cd: 1.4, gold: 22, skin: 0x5a5e4a, eye: 0xffa040, w: 0.3 },
   schatten: { name: 'Schatten', hp: 65, spd: 4.2, dmg: 13, r: 0.45, range: 1.7, cd: 1.0, gold: 18, skin: 0x0c0c14, eye: 0xd8f0ff, w: 0.35 },
   koenigin: { name: 'Die Monsterkönigin', hp: 1600, spd: 2.2, dmg: 30, r: 2.2, range: 5.5, cd: 2.2, gold: 0, skin: 0x2c1830, eye: 0xd25cff, w: 0 },
@@ -128,7 +128,7 @@ const HIT = {
   koloss: [[1.0, 0.75, 0], [1.95, 0.85, 0], [2.72, 0.34, 1]],
   schreier: [[0.5, 0.25, 0], [1.25, 0.3, 0], [1.82, 0.22, 1]],
   platzer: [[0.65, 0.7, 0], [1.15, 0.28, 1]],
-  kraehe: [[0, 0.38, 0], [0.12, 0.18, 1]],
+  kraehe: [[0, 0.6, 0], [0.12, 0.3, 1]], // groß, damit man die kleinen Flieger auch trifft
   schild: [[0.5, 0.32, 0], [1.15, 0.42, 0], [1.68, 0.22, 1]],
   schatten: [[0.5, 0.25, 0], [1.25, 0.3, 0], [1.82, 0.22, 1]],
   koenigin: [[1.9, 2.1, 0], [3.9, 1.0, 0], [3.9, 0.55, 1], [5.4, 0.9, 1]],
@@ -183,7 +183,7 @@ function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
 function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, reached: 0, freed: {}, visited: { 0: 1 }, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
 let SV = freshSave();
-const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, nums: true, weather: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
+const OPT = Object.assign({ sens: 1, sound: true, music: true, env: 0.35, vib: true, nums: true, weather: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
 function hasSave() { const s = lsGet(SAVE_KEY); return !!(s && s.weapons); }
 function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); migrateSave(s); return true; } return false; }
@@ -200,7 +200,7 @@ function saveOpts() { lsSet(OPT_KEY, OPT); }
 
 // ---------- Ton (alles synthetisch) ----------
 const AU = {
-  ctx: null, out: null, nb: null, last: {}, flameG: null,
+  ctx: null, out: null, env: null, dst: null, nb: null, last: {}, flameG: null,
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
@@ -208,24 +208,27 @@ const AU = {
       const c = new C(); this.ctx = c;
       this.out = c.createGain(); this.out.gain.value = OPT.sound ? 0.8 : 0;
       const comp = c.createDynamicsCompressor(); this.out.connect(comp); comp.connect(c.destination);
+      // eigener Regler für Wetter und Hintergrundgeräusche (Regen, Donner, Wind, Brummen)
+      this.env = c.createGain(); this.env.gain.value = OPT.env; this.env.connect(this.out);
       const len = c.sampleRate, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       this.nb = b; this.ambient(); this.flameLoop(); startMusic();
     } catch (e) { this.ctx = null; }
   },
   setOn(on) { if (this.out) this.out.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05); },
+  setEnv(v) { if (this.env) this.env.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1); },
   noise(t, dur, f0, f1, vol, type, q) {
     const c = this.ctx, s = c.createBufferSource(); s.buffer = this.nb; s.loop = true;
     const f = c.createBiquadFilter(); f.type = type || 'lowpass'; f.Q.value = q || 0.8;
     f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(this.out); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(this.dst || this.out); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
   },
   tone(t, type, f0, f1, dur, vol) {
     const c = this.ctx, o = c.createOscillator(); o.type = type;
     o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.out); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(this.dst || this.out); o.start(t); o.stop(t + dur + 0.05);
   },
   play(n, gap) {
     if (!this.ctx || !OPT.sound) return;
@@ -259,17 +262,17 @@ const AU = {
       case 'break': this.noise(t, 0.3, 1200, 200, 0.5, 'bandpass', 1); break;
       case 'throw': this.noise(t, 0.22, 600, 2200, 0.25, 'bandpass', 1.5); break;
       case 'tick': this.tone(t, 'square', 1800, 1800, 0.03, 0.06); break;
-      case 'thunder': this.noise(t, 2.6, 300, 40, 0.9, 'lowpass', 0.7); this.tone(t, 'sine', 55, 30, 2.2, 0.35); this.noise(t + 0.15, 1.2, 900, 120, 0.35, 'lowpass'); break;
+      case 'thunder': this.dst = this.env; this.noise(t, 2.6, 300, 40, 0.5, 'lowpass', 0.7); this.tone(t, 'sine', 55, 30, 2.2, 0.2); this.noise(t + 0.15, 1.2, 900, 120, 0.2, 'lowpass'); this.dst = null; break;
       case 'caw': { const f = rand(700, 950); this.tone(t, 'sawtooth', f, f * 0.6, 0.18, 0.08); this.noise(t, 0.15, 2500, 1200, 0.1, 'bandpass', 3); } break;
       case 'dash': this.noise(t, 0.25, 400, 3000, 0.35, 'bandpass', 1.2); break;
     }
   },
   ambient() {
-    const c = this.ctx, g = c.createGain(); g.gain.value = 0.05; g.connect(this.out);
+    const c = this.ctx, g = c.createGain(); g.gain.value = 0.03; g.connect(this.env);
     [41, 43.6, 61.7].forEach(f => { const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(); });
     const s = c.createBufferSource(); s.buffer = this.nb; s.loop = true;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 400; f.Q.value = 0.6;
-    const wg = c.createGain(); wg.gain.value = 0.035; s.connect(f); f.connect(wg); wg.connect(this.out); s.start();
+    const wg = c.createGain(); wg.gain.value = 0.02; s.connect(f); f.connect(wg); wg.connect(this.env); s.start();
     const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 250; lfo.connect(lg); lg.connect(f.frequency); lfo.start();
   },
   flameLoop() {
@@ -279,8 +282,8 @@ const AU = {
   },
   rain(level) {
     if (!this.ctx) return;
-    if (!this.rainG) { const c = this.ctx, s = c.createBufferSource(); s.buffer = this.nb; s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400; const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); g.connect(this.out); s.start(); this.rainG = g; }
-    this.rainG.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 0.5);
+    if (!this.rainG) { const c = this.ctx, s = c.createBufferSource(); s.buffer = this.nb; s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400; const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); g.connect(this.env); s.start(); this.rainG = g; }
+    this.rainG.gain.setTargetAtTime(level * 0.05, this.ctx.currentTime, 0.5);
   },
   flame(on) { if (this.flameG) this.flameG.gain.setTargetAtTime(on ? 0.35 : 0, this.ctx.currentTime, 0.04); },
 };

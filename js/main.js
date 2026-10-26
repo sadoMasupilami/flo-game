@@ -354,7 +354,7 @@ let setFrom = 'menu';
 function openSettings(from) {
   setFrom = from;
   $('optSens').value = OPT.sens; $('optAim').value = OPT.aim; $('optGfx').value = OPT.gfx; $('optBtn').value = OPT.btn; $('optDiff').value = SV.diff || 'normal';
-  $('optSound').checked = OPT.sound; $('optMusic').checked = OPT.music; $('optVib').checked = OPT.vib; $('optNums').checked = OPT.nums; $('optWeather').checked = OPT.weather;
+  $('optEnv').value = OPT.env; $('optSound').checked = OPT.sound; $('optMusic').checked = OPT.music; $('optVib').checked = OPT.vib; $('optNums').checked = OPT.nums; $('optWeather').checked = OPT.weather;
   $('optDiff').hidden = $('lblDiff').hidden = from !== 'shop'; // Schwierigkeit nur während eines Spiels
   $(from).hidden = true; $('settings').hidden = false; $('settings').scrollTop = 0;
 }
@@ -369,6 +369,7 @@ $('optGfx').onchange = e => { OPT.gfx = e.target.value; saveOpts(); applyGfx(); 
 $('optBtn').onchange = e => { OPT.btn = e.target.value; saveOpts(); applyBtns(); };
 $('optDiff').onchange = e => { SV.diff = e.target.value; saveGame(); };
 $('optSound').onchange = e => { OPT.sound = e.target.checked; saveOpts(); AU.init(); AU.setOn(OPT.sound); };
+$('optEnv').addEventListener('input', e => { OPT.env = +e.target.value; saveOpts(); AU.init(); AU.setEnv(OPT.env); });
 $('optMusic').onchange = e => { OPT.music = e.target.checked; saveOpts(); AU.init(); setMusicOn(OPT.music); };
 $('optVib').onchange = e => { OPT.vib = e.target.checked; saveOpts(); };
 $('optNums').onchange = e => { OPT.nums = e.target.checked; saveOpts(); };

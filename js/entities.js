@@ -542,16 +542,19 @@ function updateEyeGlow() {
 // Krähen kommen als Schwarm
 function spawnGroup(type, x, z, opt) {
   if (type !== 'kraehe') return spawnMonster(type, x, z, opt);
-  for (let i = 0; i < 4; i++) spawnMonster('kraehe', clampX(x + rand(-2, 2), 2), clampZ(z + rand(-2, 2), 2), opt);
+  for (let i = 0; i < 3; i++) spawnMonster('kraehe', clampX(x + rand(-2, 2), 2), clampZ(z + rand(-2, 2), 2), opt);
   AU.play('caw', 0.2);
 }
 function updateFlyer(m, dt, dist, nx, nz) {
   const gp = m.g.position;
   m.cd -= dt;
-  let alt = 3 + Math.sin(m.t * 2 + m.phase) * 0.6, sp = m.spd, mx = nx, mz = nz;
-  if (m.dive > 0) {
-    m.dive -= dt; alt = 1.35; sp *= 1.25;
+  let alt = 2.3 + Math.sin(m.t * 2 + m.phase) * 0.4, sp = m.spd, mx = nx, mz = nz;
+  if (m.low > 0) { // nach dem Herabstoßen flattert sie kurz tief und langsam – jetzt kann man sie gut treffen
+    m.low -= dt; alt = 1.5; sp *= 0.35;
+  } else if (m.dive > 0) {
+    m.dive -= dt; alt = 1.35; sp *= 1.1;
     if (dist < m.range && Math.abs(gp.y - 1.4) < 0.7) { hurtPlayer(m.dmg); m.dive = 0; m.cd = m.def.cd * rand(1.2, 2); }
+    if (m.dive <= 0) m.low = 1.6;
   } else {
     if (dist < 7) { mx = -nz * m.side + nx * 0.25; mz = nx * m.side + nz * 0.25; } // über dem Spieler kreisen
     if (m.cd <= 0 && dist < 12 && safeIdx() < 0) { m.dive = 1.8; if (Math.random() < 0.5) AU.play('caw', 0.3); }

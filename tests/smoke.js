@@ -72,8 +72,9 @@ function checkOfflineList() {
       check(r.w === 1 && r.g === 3, 'Kauf hat nicht geklappt: ' + JSON.stringify(r));
       await page.click('#btnSetS');
       await page.selectOption('#optGfx', 'schnell'); await page.selectOption('#optBtn', 'gross'); await page.selectOption('#optAim', 'stark');
+      await page.$eval('#optEnv', el => { el.value = '0.2'; el.dispatchEvent(new Event('input')); });
       await page.click('#btnSetBack');
-      check(await ev(() => document.body.classList.contains('bigbtn') && OPT.gfx === 'schnell' && OPT.aim === 'stark'), 'Einstellungen wurden nicht übernommen');
+      check(await ev(() => document.body.classList.contains('bigbtn') && OPT.gfx === 'schnell' && OPT.aim === 'stark' && OPT.env === 0.2), 'Einstellungen wurden nicht übernommen');
       await page.click('#btnLeave'); await until(() => GS === 'play');
     });
 
@@ -219,9 +220,9 @@ function checkOfflineList() {
         const s = monsters.find(m => m.type === 'schild'); s.g.rotation.y = Math.atan2(player.pos.x - s.g.position.x, player.pos.z - s.g.position.z);
         const h0 = s.hp; damageMonster(s, 100, null, false, 0); const front = h0 - s.hp;
         const p = monsters.find(m => m.type === 'platzer'); damageMonster(p, 1e6, null, false);
-        return { crows: monsters.filter(m => m.type === 'kraehe' && m.g.position.y > 1.5).length, front, burst: !!p.burst, shadow: monsters.find(m => m.type === 'schatten').vis };
+        return { crows: monsters.filter(m => m.type === 'kraehe' && m.g.position.y > 1).length, front, burst: !!p.burst, shadow: monsters.find(m => m.type === 'schatten').vis };
       });
-      check(r.crows === 4, 'Krähen fliegen nicht: ' + JSON.stringify(r));
+      check(r.crows === 3, 'Krähen fliegen nicht: ' + JSON.stringify(r));
       check(r.front < 20, 'Schild blockt nicht: ' + JSON.stringify(r));
       check(r.burst, 'Platzer ist nicht explodiert');
       check(r.shadow < 0.3, 'Schatten ist zu sichtbar: ' + JSON.stringify(r));
