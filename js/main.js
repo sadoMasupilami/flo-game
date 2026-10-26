@@ -117,6 +117,10 @@ addEventListener('pointerdown', () => AU.init(), { once: true });
 document.querySelectorAll('.ab').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); useAbility(+b.dataset.ab); }));
 $('enter').addEventListener('click', () => { const s = safeIdx(); if (s >= 0 && GS === 'play') openShelter(s); });
 document.addEventListener('contextmenu', e => e.preventDefault());
+// Kein Zoomen: weder mit zwei Fingern noch durch Doppeltippen
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
 
 addEventListener('keydown', e => {
   input.keys[e.code] = true;

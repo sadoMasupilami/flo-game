@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Portalnacht</title>
 <meta name="theme-color" content="#07080a">
 <meta name="mobile-web-app-capable" content="yes">
@@ -39,7 +39,7 @@
   --sb:env(safe-area-inset-bottom, 0px);
   color-scheme:dark;
 }
-html,body{height:100%}
+html,body{height:100%;touch-action:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--night);color:var(--ink);font:500 16px/1.4 var(--f-ui);overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
