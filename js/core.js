@@ -61,17 +61,17 @@ const TRADER = [
 
 // Waffen: avail = ab welchem Unterschlupf Mara sie verkauft (Unterschlupf i liegt am Anfang von Gebiet i+1)
 const WEAPONS = [
-  { id: 'holz', kb: 3, name: 'Holzschwert', cat: 'Nahkampf', kind: 'melee', avail: 0, price: 0, up: [40, 90, 160], dmg: 15, rate: 1.8, range: 2.7, arc: 0.5 },
-  { id: 'schleuder', kb: 1.5, name: 'Steinschleuder', cat: 'Fernkampf', kind: 'proj', avail: 0, price: 60, up: [50, 100, 170], dmg: 13, rate: 2.2, speed: 32, grav: 6, proj: 'stone' },
-  { id: 'eisen', kb: 3.5, name: 'Eisenschwert', cat: 'Nahkampf', kind: 'melee', avail: 1, price: 180, up: [120, 220, 350], dmg: 29, rate: 1.9, range: 2.9, arc: 0.45 },
-  { id: 'bogen', kb: 2, name: 'Bogen', cat: 'Fernkampf', kind: 'proj', avail: 1, price: 240, up: [150, 260, 400], dmg: 34, rate: 1.4, speed: 48, grav: 4, proj: 'arrow', pierce: 1 },
-  { id: 'axt', kb: 6, name: 'Kampfaxt', cat: 'Nahkampf', kind: 'melee', avail: 2, price: 420, up: [260, 420, 640], dmg: 64, rate: 1.25, range: 3.1, arc: 0.25 },
-  { id: 'armbrust', kb: 3.5, name: 'Armbrust', cat: 'Fernkampf', kind: 'proj', avail: 2, price: 560, up: [320, 520, 800], dmg: 72, rate: 1.1, speed: 66, grav: 1.5, proj: 'bolt', pierce: 3 },
-  { id: 'pistole', kb: 1.2, name: 'Pistole', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 850, up: [480, 760, 1100], dmg: 36, rate: 4, spread: 0.012, pellets: 1, range: 70 },
-  { id: 'schrot', kb: 6, name: 'Schrotflinte', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 1200, up: [650, 1000, 1500], dmg: 17, rate: 1.3, spread: 0.085, pellets: 8, range: 24 },
-  { id: 'gewehr', kb: 0.7, name: 'Sturmgewehr', cat: 'Schusswaffe', kind: 'hitscan', avail: 4, price: 1900, up: [1000, 1500, 2200], dmg: 42, rate: 8, spread: 0.02, pellets: 1, range: 70 },
-  { id: 'rakete', kb: 0, name: 'Raketenwerfer', cat: 'Schwere Waffe', kind: 'rocket', avail: 4, price: 3000, up: [1500, 2300, 3300], dmg: 380, rate: 0.7, speed: 28, splash: 4.5, proj: 'rocket' },
-  { id: 'feuer', kb: 0, name: 'Feuerwerfer', cat: 'Schwere Waffe', kind: 'flame', avail: 5, price: 3800, up: [1800, 2700, 3800], dmg: 320, rate: 20, range: 7.5, cone: 0.88 },
+  { id: 'holz', sp: 'Wirbelhieb – trifft alle Monster rund um dich.', kb: 3, name: 'Holzschwert', cat: 'Nahkampf', kind: 'melee', avail: 0, price: 0, up: [40, 90, 160], dmg: 15, rate: 1.8, range: 2.7, arc: 0.5 },
+  { id: 'schleuder', sp: 'Dreifachschuss – drei Steine auf einmal.', kb: 1.5, name: 'Steinschleuder', cat: 'Fernkampf', kind: 'proj', avail: 0, price: 60, up: [50, 100, 170], dmg: 13, rate: 2.2, speed: 32, grav: 6, proj: 'stone' },
+  { id: 'eisen', sp: 'Klingenwelle – jeder Hieb schleudert eine leuchtende Welle nach vorn.', kb: 3.5, name: 'Eisenschwert', cat: 'Nahkampf', kind: 'melee', avail: 1, price: 180, up: [120, 220, 350], dmg: 29, rate: 1.9, range: 2.9, arc: 0.45 },
+  { id: 'bogen', sp: 'Feuerpfeile – Treffer brennen, und wo der Pfeil landet, brennt der Boden.', kb: 2, name: 'Bogen', cat: 'Fernkampf', kind: 'proj', avail: 1, price: 240, up: [150, 260, 400], dmg: 34, rate: 1.4, speed: 48, grav: 4, proj: 'arrow', pierce: 1 },
+  { id: 'axt', sp: 'Erdspalter – jeder dritte Hieb erschüttert den Boden rundherum.', kb: 6, name: 'Kampfaxt', cat: 'Nahkampf', kind: 'melee', avail: 2, price: 420, up: [260, 420, 640], dmg: 64, rate: 1.25, range: 3.1, arc: 0.25 },
+  { id: 'armbrust', sp: 'Sprengbolzen – Bolzen explodieren beim Aufprall.', kb: 3.5, name: 'Armbrust', cat: 'Fernkampf', kind: 'proj', avail: 2, price: 560, up: [320, 520, 800], dmg: 72, rate: 1.1, speed: 66, grav: 1.5, proj: 'bolt', pierce: 3 },
+  { id: 'pistole', sp: 'Doppelschuss – zwei Kugeln pro Schuss.', kb: 1.2, name: 'Pistole', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 850, up: [480, 760, 1100], dmg: 36, rate: 4, spread: 0.012, pellets: 1, range: 70 },
+  { id: 'schrot', sp: 'Drachenatem – die Schrotkugeln setzen Monster in Brand.', kb: 6, name: 'Schrotflinte', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 1200, up: [650, 1000, 1500], dmg: 17, rate: 1.3, spread: 0.085, pellets: 8, range: 24 },
+  { id: 'gewehr', sp: 'Durchschlag – jede Kugel trifft bis zu drei Monster hintereinander.', kb: 0.7, name: 'Sturmgewehr', cat: 'Schusswaffe', kind: 'hitscan', avail: 4, price: 1900, up: [1000, 1500, 2200], dmg: 42, rate: 8, spread: 0.02, pellets: 1, range: 70 },
+  { id: 'rakete', sp: 'Zielsuchend – Raketen lenken sich selbst ins nächste Monster.', kb: 0, name: 'Raketenwerfer', cat: 'Schwere Waffe', kind: 'rocket', avail: 4, price: 3000, up: [1500, 2300, 3300], dmg: 380, rate: 0.7, speed: 28, splash: 4.5, proj: 'rocket' },
+  { id: 'feuer', sp: 'Inferno – größere Reichweite, und der Boden brennt mit.', kb: 0, name: 'Feuerwerfer', cat: 'Schwere Waffe', kind: 'flame', avail: 5, price: 3800, up: [1800, 2700, 3800], dmg: 320, rate: 20, range: 7.5, cone: 0.88 },
 ];
 const W_BY = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 const DMG_L = [1, 1.4, 1.9, 2.6], RATE_L = [1, 1.08, 1.16, 1.25];
@@ -94,6 +94,10 @@ const MT = {
   spucker: { name: 'Spucker', hp: 46, spd: 2.3, dmg: 10, r: 0.6, range: 13, cd: 2.4, gold: 12, skin: 0x4f5a3a, eye: 0x9cff5a, w: 0.55, ranged: true },
   koloss: { name: 'Koloss', hp: 210, spd: 1.9, dmg: 24, r: 1.0, range: 2.6, cd: 1.7, gold: 30, skin: 0x5a4038, eye: 0xff3b1f, w: 0.2 },
   schreier: { name: 'Schreier', hp: 40, spd: 6.0, dmg: 10, r: 0.45, range: 1.6, cd: 0.85, gold: 11, skin: 0x8a8780, eye: 0xe8f4ff, w: 0.6 },
+  platzer: { name: 'Platzer', hp: 24, spd: 4.8, dmg: 30, r: 0.6, range: 1.7, cd: 1, gold: 9, skin: 0x9a6a3a, eye: 0xffd040, w: 0.45 },
+  kraehe: { name: 'Krähe', hp: 14, spd: 6.5, dmg: 6, r: 0.4, range: 1.5, cd: 1.3, gold: 4, skin: 0x2a2a30, eye: 0xff3030, w: 0.35, fly: true },
+  schild: { name: 'Schildträger', hp: 120, spd: 2.1, dmg: 15, r: 0.65, range: 1.9, cd: 1.4, gold: 22, skin: 0x5a5e4a, eye: 0xffa040, w: 0.3 },
+  schatten: { name: 'Schatten', hp: 65, spd: 4.2, dmg: 13, r: 0.45, range: 1.7, cd: 1.0, gold: 18, skin: 0x0c0c14, eye: 0xd8f0ff, w: 0.35 },
   koenigin: { name: 'Die Monsterkönigin', hp: 1600, spd: 2.2, dmg: 30, r: 2.2, range: 5.5, cd: 2.2, gold: 0, skin: 0x2c1830, eye: 0xd25cff, w: 0 },
 };
 // Trefferkugeln: [Höhe, Radius, Kopf/Schwachstelle]
@@ -103,15 +107,19 @@ const HIT = {
   spucker: [[0.5, 0.3, 0], [1.0, 0.65, 0], [1.55, 0.2, 1]],
   koloss: [[1.0, 0.75, 0], [1.95, 0.85, 0], [2.72, 0.34, 1]],
   schreier: [[0.5, 0.25, 0], [1.25, 0.3, 0], [1.82, 0.22, 1]],
+  platzer: [[0.65, 0.7, 0], [1.15, 0.28, 1]],
+  kraehe: [[0, 0.38, 0], [0.12, 0.18, 1]],
+  schild: [[0.5, 0.32, 0], [1.15, 0.42, 0], [1.68, 0.22, 1]],
+  schatten: [[0.5, 0.25, 0], [1.25, 0.3, 0], [1.82, 0.22, 1]],
   koenigin: [[1.9, 2.1, 0], [3.9, 1.0, 0], [3.9, 0.55, 1], [5.4, 0.9, 1]],
 };
 const AREA_TYPES = [
   ['kriecher', 'ghul'],
-  ['kriecher', 'ghul', 'spucker'],
-  ['kriecher', 'ghul', 'spucker', 'koloss'],
-  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier'],
-  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier'],
-  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier'],
+  ['kriecher', 'ghul', 'spucker', 'platzer'],
+  ['kriecher', 'ghul', 'spucker', 'koloss', 'platzer', 'kraehe'],
+  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier', 'platzer', 'kraehe', 'schild'],
+  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier', 'platzer', 'kraehe', 'schild', 'schatten'],
+  ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier', 'platzer', 'kraehe', 'schild', 'schatten'],
 ];
 const HPM = [1, 1.75, 2.9, 4.4, 6.4, 9.2], DMGM = [1, 1.2, 1.45, 1.7, 2.0, 2.3], GOLDM = [1, 1.6, 2.4, 3.4, 4.6, 6];
 // Stufen-Farben: 1 neutral, 2 blau, 3 lila, 4 rot
@@ -119,8 +127,19 @@ const LV_HEX = [0xd8cfc0, 0x4d8dff, 0xb46bff, 0xff3b4a];
 // Granaten
 const GREN_MAX = 6, GREN_DMG = 140, GREN_R = 5;
 const grenPrice = i => Math.round(40 * GOLDM[i] / 5) * 5;
+// Ausrüstung bei Mara: verbessert die eigene Figur (Stufe 1–4)
+const GEAR = [
+  { id: 'ruestung', name: 'Rüstung', cat: 'Schutz', avail: 1, cost: [200, 450, 900, 1600], val: [25, 50, 80, 120], desc: v => `+${v} Leben` },
+  { id: 'schuhe', name: 'Laufschuhe', cat: 'Tempo', avail: 1, cost: [150, 350, 700, 1200], val: [8, 16, 24, 32], desc: v => `${v} % schneller laufen` },
+  { id: 'gurt', name: 'Granatengurt', cat: 'Taschen', avail: 0, cost: [80, 220, 480, 900], val: [8, 10, 12, 15], desc: v => `Platz für ${v} Granaten` },
+];
+function gearLv(id) { return (SV.gear && SV.gear[id]) || 0; }
+function gearVal(id) { const g = GEAR.find(x => x.id === id), lv = gearLv(id); return lv ? g.val[lv - 1] : 0; }
+function grenMax() { return gearLv('gurt') ? gearVal('gurt') : GREN_MAX; }
+function maxHpNow() { return 100 + gearVal('ruestung'); }
+function speedMult() { return 1 + gearVal('schuhe') / 100; }
 // Höhe der Lebensleiste über dem Monster
-const BAR_TOP = { kriecher: 1.0, ghul: 2.05, spucker: 1.9, koloss: 3.2, schreier: 2.2 };
+const BAR_TOP = { kriecher: 1.0, ghul: 2.05, spucker: 1.9, koloss: 3.2, schreier: 2.2, platzer: 1.6, kraehe: 0.6, schild: 2.1, schatten: 2.25 };
 // Schwierigkeitsgrade
 const DIFF = {
   leicht: { name: 'Leicht', hp: 0.7, dmg: 0.6, gold: 1.2, regen: 10 },
@@ -142,9 +161,9 @@ const SAVE_KEY = 'portalnacht.save.v1', OPT_KEY = 'portalnacht.opts.v1';
 function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
-function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal' }; }
+function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
 let SV = freshSave();
-const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, nums: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
+const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, nums: true, weather: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
 function hasSave() { const s = lsGet(SAVE_KEY); return !!(s && s.weapons); }
 function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); return true; } return false; }
@@ -211,6 +230,8 @@ const AU = {
       case 'break': this.noise(t, 0.3, 1200, 200, 0.5, 'bandpass', 1); break;
       case 'throw': this.noise(t, 0.22, 600, 2200, 0.25, 'bandpass', 1.5); break;
       case 'tick': this.tone(t, 'square', 1800, 1800, 0.03, 0.06); break;
+      case 'thunder': this.noise(t, 2.6, 300, 40, 0.9, 'lowpass', 0.7); this.tone(t, 'sine', 55, 30, 2.2, 0.35); this.noise(t + 0.15, 1.2, 900, 120, 0.35, 'lowpass'); break;
+      case 'caw': { const f = rand(700, 950); this.tone(t, 'sawtooth', f, f * 0.6, 0.18, 0.08); this.noise(t, 0.15, 2500, 1200, 0.1, 'bandpass', 3); } break;
       case 'dash': this.noise(t, 0.25, 400, 3000, 0.35, 'bandpass', 1.2); break;
     }
   },
@@ -226,6 +247,11 @@ const AU = {
     const c = this.ctx, s = c.createBufferSource(); s.buffer = this.nb; s.loop = true;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.5;
     const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); g.connect(this.out); s.start(); this.flameG = g;
+  },
+  rain(level) {
+    if (!this.ctx) return;
+    if (!this.rainG) { const c = this.ctx, s = c.createBufferSource(); s.buffer = this.nb; s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1400; const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); g.connect(this.out); s.start(); this.rainG = g; }
+    this.rainG.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 0.5);
   },
   flame(on) { if (this.flameG) this.flameG.gain.setTargetAtTime(on ? 0.35 : 0, this.ctx.currentTime, 0.04); },
 };

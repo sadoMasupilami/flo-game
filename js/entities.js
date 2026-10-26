@@ -71,6 +71,7 @@ function spawnMonster(type, x, z, opt) {
     scene.add(bg, fill); m.bar = { bg, fill, fm, w, top: BAR_TOP[type] * sc + 0.3, c: 0x52d273 };
   }
   if (boss) { m.state = 'rise'; bossRef = m; barRef = m; fightClean = true; }
+  if (def.fly) { g.position.y = rand(6, 9); m.state = 'chase'; m.dive = 0; m.cd = rand(1, 3); } // Krähen kommen von oben
   monsters.push(m);
   if (Math.random() < 0.3 || elite || boss) AU.play(boss ? 'roar' : 'growl', 0.3);
   return m;
@@ -92,6 +93,7 @@ function animMonster(m, dt, moving) {
   if (P.body) { const k = 1 + (m.wind > 0 ? (1 - m.wind / m.windMax) * 0.18 : 0); P.body.scale.set(P.bodyS.x * k, P.bodyS.y * k, P.bodyS.z * k); }
   if (P.core) { const k = 0.8 + Math.sin(m.t * 6) * 0.2; P.core.scale.set(0.45 * k, 0.45 * k, 0.3 * k); }
   if (P.aura) P.aura.rotation.y += dt * 2;
+  if (P.wings) { const f = Math.sin(m.t * 22 + m.phase) * 0.9; P.wings[0].rotation.z = -f; P.wings[1].rotation.z = f; }
   if (P.jaw) P.jaw.rotation.x = m.wind > 0 ? (1 - m.wind / m.windMax) * 0.55 : 0.12 + Math.sin(m.t * 3) * 0.06;
   if (P.sacks) P.sacks.forEach((sk, k) => { const s = 1 + Math.sin(m.t * 4 + k * 1.3) * 0.12; sk.scale.setScalar(sk.userData.s0 * s); });
 }
@@ -113,8 +115,22 @@ function launchMonster(m, fx, fz, power) {
   m.vy = Math.max(m.vy, power * 0.6 * h); m.flinch = 1; m.spin = rand(-7, 7) * h;
   if (h === 1) { m.wind = 0; m.cd = 0.6; }
 }
-function damageMonster(m, amount, at, head, kb) {
+let shieldHint = false;
+function damageMonster(m, amount, at, head, kb, src) {
   if (m.state === 'dead') return false;
+  // Schildträger: Treffer von vorn prallen ab, Explosionen und Feuer nicht
+  if (m.type === 'schild' && src !== 'expl' && src !== 'fire') {
+    const f = m.g.rotation.y, dx = player.pos.x - m.g.position.x, dz = player.pos.z - m.g.position.z, d = Math.hypot(dx, dz) || 1;
+    if ((Math.sin(f) * dx + Math.cos(f) * dz) / d > 0.45) {
+      amount *= 0.1; kb = (kb || 0) * 0.3; head = false;
+      if (at) sparks(at.x, at.y, at.z, 6, 1, 0.85, 0.5); AU.play('tick', 0.05);
+      if (!shieldHint) { shieldHint = true; showMsg('Schild! Greif von der Seite an oder nimm Granaten'); }
+    }
+  }
+  if (m.type === 'schatten') {
+    m.reveal = 1.5;
+    if (Math.random() < 0.22 && m.hp - amount > 0) blinkShadow(m);
+  }
   m.hp -= amount; m.flash = 0.1; m.numAcc += amount; if (head) m.numHead = true;
   showHitmark(head); if (head) achAdd('heads');
   if (kb) knockMonster(m, kb, amount);
@@ -136,6 +152,7 @@ function killMonster(m) {
   AU.play('die', 0.05);
   if (!m.boss && Math.random() < 0.09) spawnPickup(p.x, p.z);
   else if (!m.boss && Math.random() < 0.06) spawnPickup(p.x, p.z, 'gren');
+  if (m.type === 'platzer') burstPlatzer(m);
   if (m.boss) bossDefeated(m);
   else if (m.mini) {
     barRef = null; $('bossbar').hidden = true;
@@ -171,6 +188,12 @@ function updateMonsters(dt) {
     const m = monsters[i], g = m.g, gp = g.position;
     m.t += dt;
     if (m.flash > 0) { m.flash -= dt; m.skin.emissive.setHex(m.flash > 0 ? 0x701010 : (m.elite ? 0x220000 : 0)); }
+    if (m.fuse > 0 && m.state !== 'dead') m.skin.emissive.setHex(Math.sin(m.t * 40) > 0 ? 0xff7a00 : 0x401000);
+    if (m.type === 'schatten' && m.state !== 'dead') {
+      m.reveal = Math.max(0, (m.reveal || 0) - dt);
+      const near = Math.hypot(gp.x - player.pos.x, gp.z - player.pos.z) < 4.5, vis = near || m.wind > 0 || m.reveal > 0 || lightningT > 0 ? 0.95 : 0.07 + (Math.random() < 0.03 ? 0.25 : 0);
+      m.skin.opacity = lerp(m.skin.opacity, vis, Math.min(1, dt * 6)); m.vis = m.skin.opacity;
+    }
     // Schadenszahlen sammeln und gebündelt anzeigen
     if (m.numAcc > 0) { m.numT -= dt; if (m.numT <= 0 || m.state === 'dead') { dmgNumber(gp.x, gp.y + (BAR_TOP[m.type] || 6.5) * m.sc + 0.2, gp.z, m.numAcc, m.numHead); m.numAcc = 0; m.numHead = false; m.numT = 0.18; } }
     if (m.state === 'dead') {
@@ -200,7 +223,13 @@ function updateMonsters(dt) {
     }
     if (m.strike > 0) m.strike -= dt;
     let mvx = 0, mvz = 0, sp = m.spd;
-    if (m.boss) { const r = updateBoss(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
+    if (m.def.fly) { const r = updateFlyer(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
+    else if (m.type === 'platzer' && (m.fuse > 0 || (dist < m.range && !safe))) {
+      if (!(m.fuse > 0)) { m.fuse = 0.6; AU.play('tick'); }
+      m.fuse -= dt; if (Math.random() < dt * 12) AU.play('tick', 0.08);
+      if (m.fuse <= 0) { m.hp = 0; killMonster(m); continue; }
+    }
+    else if (m.boss) { const r = updateBoss(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
     else if (m.mini) { const r = updateMini(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
     else if (m.wind > 0) {
       m.wind -= dt;
@@ -236,7 +265,7 @@ function updateMonsters(dt) {
     sp *= 1 - m.flinch * 0.85; // getroffen: kurz taumeln
     if (moving) { gp.x += mvx / len * sp * dt; gp.z += mvz / len * sp * dt; }
     if (m.kvx || m.kvz) { gp.x += m.kvx * dt; gp.z += m.kvz * dt; const f = Math.max(0, 1 - dt * 7); m.kvx *= f; m.kvz *= f; if (Math.abs(m.kvx) + Math.abs(m.kvz) < 0.05) m.kvx = m.kvz = 0; }
-    if (gp.y > 0 || m.vy > 0) { m.vy -= 22 * dt; gp.y = Math.max(0, gp.y + m.vy * dt); g.rotation.z += m.spin * dt; if (gp.y === 0) { m.vy = 0; smokePuff(gp.x, 0.1, gp.z, 3, 0.16); } }
+    if (!m.def.fly && (gp.y > 0 || m.vy > 0)) { m.vy -= 22 * dt; gp.y = Math.max(0, gp.y + m.vy * dt); g.rotation.z += m.spin * dt; if (gp.y === 0) { m.vy = 0; smokePuff(gp.x, 0.1, gp.z, 3, 0.16); } }
     else if (g.rotation.z) g.rotation.z = angLerp(g.rotation.z, 0, dt * 10);
     m.flinch = Math.max(0, m.flinch - dt * 4);
     // nicht in den Spieler hineinlaufen
@@ -251,7 +280,7 @@ function updateMonsters(dt) {
     }
     // zu weit weg: näher heranholen
     if (dist > 60 && !m.boss) { const p = spawnPos(curArea()); gp.x = p[0]; gp.z = p[1]; }
-    g.rotation.y = angLerp(g.rotation.y, Math.atan2(nx, nz), dt * 8);
+    g.rotation.y = angLerp(g.rotation.y, Math.atan2(nx, nz), dt * (m.type === 'schild' ? 1.2 : 8)); // Schildträger drehen sich langsam
     g.rotation.x = -0.45 * m.flinch;
     animMonster(m, dt, moving);
   }
@@ -351,7 +380,7 @@ function updateWaves(dt) {
       st.spawnT -= dt;
       if (st.spawnT <= 0 && aliveCount() < 10 + a * 1.5) {
         const q = st.queue.shift(), p = spawnPos(a);
-        spawnMonster(q.t, p[0], p[1], { area: a, elite: q.elite, mini: q.mini, wa: a, wj: st.wave });
+        spawnGroup(q.t, p[0], p[1], { area: a, elite: q.elite, mini: q.mini, wa: a, wj: st.wave });
         st.spawnT = rand(0.45, 0.8);
       }
     } else if (waveRemaining(a, st.wave) === 0) {
@@ -368,7 +397,7 @@ function updateBars() {
   _v.setFromMatrixColumn(camera.matrixWorld, 0);
   for (const m of monsters) {
     const b = m.bar; if (!b) continue;
-    const show = m.state !== 'dead'; b.bg.visible = b.fill.visible = show; if (!show) continue;
+    const show = m.state !== 'dead' && !(m.vis < 0.3); b.bg.visible = b.fill.visible = show; if (!show) continue;
     const gp = m.g.position, y = gp.y + b.top, f = clamp(m.hp / m.maxHp, 0, 1);
     b.bg.position.set(gp.x, y, gp.z);
     b.fill.scale.x = Math.max(0.001, b.w * f);
@@ -445,4 +474,49 @@ function updateEyeGlow() {
   }
   for (let k = i; k < peN; k++) s[k] = 0;
   peN = i; PE.pa.needsUpdate = true; PE.ca.needsUpdate = true; PE.sa.needsUpdate = true;
+}
+
+// ---------- Neue Monster: Krähen, Platzer, Schatten ----------
+// Krähen kommen als Schwarm
+function spawnGroup(type, x, z, opt) {
+  if (type !== 'kraehe') return spawnMonster(type, x, z, opt);
+  for (let i = 0; i < 4; i++) spawnMonster('kraehe', clamp(x + rand(-2, 2), -16, 16), z + rand(-2, 2), opt);
+  AU.play('caw', 0.2);
+}
+function updateFlyer(m, dt, dist, nx, nz) {
+  const gp = m.g.position;
+  m.cd -= dt;
+  let alt = 3 + Math.sin(m.t * 2 + m.phase) * 0.6, sp = m.spd, mx = nx, mz = nz;
+  if (m.dive > 0) {
+    m.dive -= dt; alt = 1.35; sp *= 1.25;
+    if (dist < m.range && Math.abs(gp.y - 1.4) < 0.7) { hurtPlayer(m.dmg); m.dive = 0; m.cd = m.def.cd * rand(1.2, 2); }
+  } else {
+    if (dist < 7) { mx = -nz * m.side + nx * 0.25; mz = nx * m.side + nz * 0.25; } // über dem Spieler kreisen
+    if (m.cd <= 0 && dist < 12 && safeIdx() < 0) { m.dive = 1.8; if (Math.random() < 0.5) AU.play('caw', 0.3); }
+  }
+  gp.y = lerp(gp.y, alt, Math.min(1, dt * 3));
+  return [mx, mz, sp];
+}
+function burstPlatzer(m) {
+  if (m.burst) return; m.burst = true;
+  const p = m.g.position, R = 3.4;
+  boomLight.position.set(p.x, 1.5, p.z); boomLight.intensity = 5;
+  for (let i = 0; i < 50; i++) PF.emit(p.x, 0.8, p.z, rand(-5, 5), rand(1, 5), rand(-5, 5), rand(0.3, 0.7), 1, rand(0.5, 0.8), 0.15, rand(0.4, 0.8), 2, -0.4, 2, 1);
+  smokePuff(p.x, 0.5, p.z, 14, 0.2); AU.play('boom', 0.05);
+  shake = Math.max(shake, clamp(1 - Math.hypot(player.pos.x - p.x, player.pos.z - p.z) / 20, 0, 0.6));
+  addDecal(p.x, p.z, 2.6, 0x1a1208);
+  const dp = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
+  if (dp < R) { hurtPlayer(m.dmg * (1 - dp / R * 0.6)); knockPlayer((player.pos.x - p.x) / (dp || 1), (player.pos.z - p.z) / (dp || 1), 1.6); }
+  for (const o of monsters.slice()) {
+    if (o === m || o.state === 'dead') continue;
+    const d = Math.hypot(o.g.position.x - p.x, o.g.position.z - p.z) - o.r;
+    if (d < R) { launchMonster(o, p.x, p.z, 10 * (1 - Math.max(0, d) / R) + 2); damageMonster(o, m.dmg * 2 * (1 - Math.max(0, d) / R * 0.6), null, false, 0, 'expl'); }
+  }
+}
+function blinkShadow(m) {
+  const gp = m.g.position, s = Math.random() < 0.5 ? -1 : 1, dx = gp.x - player.pos.x, dz = gp.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
+  const x = clamp(gp.x + (-dz / d) * s * 6, -16, 16), z = gp.z + (dx / d) * s * 6;
+  if (blockedAt(x, z, 0.6) || inSafe(x, z, 2)) return;
+  smokePuff(gp.x, 0.8, gp.z, 8, 0.05); gp.x = x; gp.z = z; smokePuff(x, 0.8, z, 8, 0.05);
+  m.reveal = 0;
 }

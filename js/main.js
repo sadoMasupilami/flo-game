@@ -168,7 +168,7 @@ function updatePlayer(dt) {
   if (k.ArrowLeft) player.yaw += 2.4 * dt; if (k.ArrowRight) player.yaw -= 2.4 * dt;
   // Sprinten: Shift oder den Joystick ganz nach vorne schieben
   const sprint = (k.ShiftLeft || k.ShiftRight || (Math.hypot(input.jx, input.jy) > 0.92 && input.jy > 0.5)) && my > 0.3;
-  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw), sp = 5.4 * (sprint ? 1.45 : 1);
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw), sp = 5.4 * (sprint ? 1.45 : 1) * speedMult();
   let vx = (-sy * my + cy * mx) * sp, vz = (-cy * my - sy * mx) * sp;
   if (player.dashT > 0) { player.dashT -= dt; vx = player.dvx; vz = player.dvz; if (Math.random() < dt * 40) smokePuff(player.pos.x, 0.1, player.pos.z, 1, 0.15); }
   player.inv = Math.max(0, player.inv - dt); player.dashCd = Math.max(0, player.dashCd - dt); player.fovKick = Math.max(0, player.fovKick - dt * 40);
@@ -246,7 +246,7 @@ function showStory(s, cb) {
 }
 function openShelter(i) {
   resetInput(); AU.flame(false); flameOn = false;
-  curShelter = i; player.hp = player.maxHp;
+  curShelter = i; player.maxHp = maxHpNow(); player.hp = player.maxHp;
   if (MODE === 'story') SV.checkpoint = Math.max(SV.checkpoint, i);
   saveGame();
   if (!SV.seen[i] && MODE === 'story') { SV.seen[i] = 1; saveGame(); showStory(STORY[i], showShop); } else showShop();
@@ -254,6 +254,7 @@ function openShelter(i) {
 function showShop() {
   GS = 'shop'; hideOverlays(); setPlayUI(false);
   $('shopTitle').textContent = SHELTERS[curShelter].name; $('shopTrader').textContent = TRADER[curShelter];
+  const [fc, fn] = secretCounts(); $('shopFound').textContent = `Gefunden: ${fc} von ${CHEST_SPOTS.length} Truhen · ${fn} von ${NOTES.length} Notizen von Opa`;
   renderShop(); $('shop').hidden = false; $('shop').scrollTop = 0;
 }
 function gebiet(avail) { return `Ab Gebiet ${avail + 1}`; }
@@ -268,7 +269,7 @@ function weaponCard(w) {
   else if (lv >= 4) btn = `<button class="sbtn" disabled>Höchste Stufe</button>`;
   else { const poor = SV.money < cost; btn = `<button class="sbtn ${poor ? 'poor' : 'buy'}" data-buyw="${w.id}" ${poor ? 'disabled' : ''}>${lv ? `Stufe ${lv + 1}` : 'Kaufen'} · ${fmt(cost)}</button>`; }
   const eq = lv ? (SV.cur === w.id ? `<button class="sbtn eq" disabled>Ausgerüstet</button>` : `<button class="sbtn eq" data-eq="${w.id}">Ausrüsten</button>`) : '';
-  return `<div class="item ${avail ? '' : 'locked'} ${SV.cur === w.id ? 'cur' : ''} lvb${lv}"><div class="top"><h3 class="l${lv}">${w.name}</h3><span class="cat">${w.cat}</span></div><p class="stat">${stat}</p><span class="pips">${pipsHTML(lv)}</span><div class="row">${btn}${eq}</div></div>`;
+  return `<div class="item ${avail ? '' : 'locked'} ${SV.cur === w.id ? 'cur' : ''} lvb${lv}"><div class="top"><h3 class="l${lv}">${w.name}</h3><span class="cat">${w.cat}</span></div><p class="stat">${stat}</p><p class="sp ${lv >= 4 ? 'on' : ''}">Stufe 4: ${w.sp}</p><span class="pips">${pipsHTML(lv)}</span><div class="row">${btn}${eq}</div></div>`;
 }
 function abilCard(A, i) {
   const lv = SV.abil[A.id] || 0, avail = curShelter >= A.avail || lv > 0, show = Math.max(1, lv);
@@ -281,20 +282,36 @@ function abilCard(A, i) {
   return `<div class="item ${avail ? '' : 'locked'} lvb${lv}"><div class="top"><h3 class="l${lv}">${A.name}</h3><span class="cat">Knopf ${i + 1}</span></div><p class="stat">${A.desc(show)} Abklingzeit ${A.cd[show - 1]} Sek.</p>${next}<span class="pips">${pipsHTML(lv)}</span><div class="row">${btn}</div></div>`;
 }
 function grenCard() {
-  const price = grenPrice(curShelter), full = SV.gren >= GREN_MAX, poor = SV.money < price, off = full || poor;
-  return `<div class="item"><div class="top"><h3>Granaten</h3><span class="cat">Wurfwaffe</span></div><p class="stat">Schaden ${fmt(GREN_DMG * HPM[curShelter])} im Umkreis · du hast ${SV.gren} von ${GREN_MAX}</p><p>Explodiert nach kurzer Zeit oder sobald sie ein Monster trifft.</p><div class="row"><button class="sbtn ${off ? 'poor' : 'buy'}" data-gren="1" ${off ? 'disabled' : ''}>${full ? 'Taschen voll' : `1 Granate · ${fmt(price)}`}</button></div></div>`;
+  const price = grenPrice(curShelter), full = SV.gren >= grenMax(), poor = SV.money < price, off = full || poor;
+  return `<div class="item"><div class="top"><h3>Granaten</h3><span class="cat">Wurfwaffe</span></div><p class="stat">Schaden ${fmt(GREN_DMG * HPM[curShelter])} im Umkreis · du hast ${SV.gren} von ${grenMax()}</p><p>Explodiert nach kurzer Zeit oder sobald sie ein Monster trifft.</p><div class="row"><button class="sbtn ${off ? 'poor' : 'buy'}" data-gren="1" ${off ? 'disabled' : ''}>${full ? 'Taschen voll' : `1 Granate · ${fmt(price)}`}</button></div></div>`;
+}
+function gearCard(g) {
+  const lv = gearLv(g.id), avail = curShelter >= g.avail || lv > 0, cost = lv < 4 ? g.cost[lv] : 0;
+  let btn;
+  if (!avail) btn = `<button class="sbtn" disabled>${gebiet(g.avail)}</button>`;
+  else if (lv >= 4) btn = `<button class="sbtn" disabled>Höchste Stufe</button>`;
+  else { const poor = SV.money < cost; btn = `<button class="sbtn ${poor ? 'poor' : 'buy'}" data-gear="${g.id}" ${poor ? 'disabled' : ''}>${lv ? `Stufe ${lv + 1}` : 'Kaufen'} · ${fmt(cost)}</button>`; }
+  const now = lv ? g.desc(g.val[lv - 1]) : 'Noch nicht gekauft.', next = lv < 4 ? `<p>Nächste Stufe: ${g.desc(g.val[lv])}</p>` : '';
+  return `<div class="item ${avail ? '' : 'locked'} lvb${lv}"><div class="top"><h3 class="l${lv}">${g.name}</h3><span class="cat">${g.cat}</span></div><p class="stat">${now}</p>${next}<span class="pips">${pipsHTML(lv)}</span><div class="row">${btn}</div></div>`;
 }
 function renderShop() {
   $('shopMoney').textContent = fmt(SV.money);
-  $('tabW').setAttribute('aria-selected', shopTab === 'w'); $('tabA').setAttribute('aria-selected', shopTab === 'a');
-  $('shopList').innerHTML = shopTab === 'w' ? grenCard() + WEAPONS.map(weaponCard).join('') : ABILITIES.map(abilCard).join('');
+  $('tabW').setAttribute('aria-selected', shopTab === 'w'); $('tabA').setAttribute('aria-selected', shopTab === 'a'); $('tabG').setAttribute('aria-selected', shopTab === 'g');
+  $('shopList').innerHTML = shopTab === 'w' ? grenCard() + WEAPONS.map(weaponCard).join('') : shopTab === 'a' ? ABILITIES.map(abilCard).join('') : GEAR.map(gearCard).join('');
 }
 $('tabW').onclick = () => { shopTab = 'w'; renderShop(); };
 $('tabA').onclick = () => { shopTab = 'a'; renderShop(); };
+$('tabG').onclick = () => { shopTab = 'g'; renderShop(); };
 $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.gear) {
+    const g = GEAR.find(x => x.id === b.dataset.gear), lv = gearLv(g.id); if (lv >= 4 || SV.money < g.cost[lv]) return;
+    SV.money -= g.cost[lv]; SV.gear = SV.gear || {}; SV.gear[g.id] = lv + 1;
+    player.maxHp = maxHpNow(); player.hp = player.maxHp;
+    AU.play('buy'); saveGame(); renderShop(); return;
+  }
   if (b.dataset.gren) {
-    const price = grenPrice(curShelter); if (SV.gren >= GREN_MAX || SV.money < price) return;
+    const price = grenPrice(curShelter); if (SV.gren >= grenMax() || SV.money < price) return;
     SV.money -= price; SV.gren++; AU.play('buy'); saveGame(); renderShop(); return;
   }
   if (b.dataset.buyw) {
@@ -317,7 +334,7 @@ let setFrom = 'menu';
 function openSettings(from) {
   setFrom = from;
   $('optSens').value = OPT.sens; $('optAim').value = OPT.aim; $('optGfx').value = OPT.gfx; $('optBtn').value = OPT.btn; $('optDiff').value = SV.diff || 'normal';
-  $('optSound').checked = OPT.sound; $('optMusic').checked = OPT.music; $('optVib').checked = OPT.vib; $('optNums').checked = OPT.nums;
+  $('optSound').checked = OPT.sound; $('optMusic').checked = OPT.music; $('optVib').checked = OPT.vib; $('optNums').checked = OPT.nums; $('optWeather').checked = OPT.weather;
   $('optDiff').hidden = $('lblDiff').hidden = from !== 'shop'; // Schwierigkeit nur während eines Spiels
   $(from).hidden = true; $('settings').hidden = false; $('settings').scrollTop = 0;
 }
@@ -335,6 +352,7 @@ $('optSound').onchange = e => { OPT.sound = e.target.checked; saveOpts(); AU.ini
 $('optMusic').onchange = e => { OPT.music = e.target.checked; saveOpts(); AU.init(); setMusicOn(OPT.music); };
 $('optVib').onchange = e => { OPT.vib = e.target.checked; saveOpts(); };
 $('optNums').onchange = e => { OPT.nums = e.target.checked; saveOpts(); };
+$('optWeather').onchange = e => { OPT.weather = e.target.checked; saveOpts(); };
 function applyBtns() { document.body.classList.toggle('bigbtn', OPT.btn === 'gross'); }
 function applyGfx() {
   const dpr = window.devicePixelRatio || 1;
@@ -370,11 +388,11 @@ function tryFullscreen() {
 function resetWorld(cp) {
   clearMonsters(); clearProjs(); clearAcids(); clearPatches(); clearBarricades(); clearPickups(); clearDecals(); clearGrenades(); clearNums();
   resetAreas(cp); $('bossbar').hidden = true; winT = -1; if (portal) portal.s = 1;
-  player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99; player.inv = 0; player.dashT = 0; player.dashCd = 0; player.fovKick = 0;
+  player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.maxHp = maxHpNow(); player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99; player.inv = 0; player.dashT = 0; player.dashCd = 0; player.fovKick = 0;
   abCd.fill(0); abOn.fill(0); lastArea = -1;
   const A = AREAS[curArea()]; scene.fog.color.setHex(A.fog); scene.background.setHex(A.fog); scene.fog.density = A.dens;
   if (!SV.weapons[SV.cur]) SV.cur = 'holz';
-  equipVM(SV.cur);
+  equipVM(SV.cur); syncSecrets();
 }
 function enterGame(cp, openFirst) {
   AU.init(); tryFullscreen(); MODE = 'story';
@@ -433,7 +451,7 @@ function frame(now) {
     updatePlayer(dt); placeCamera(dt);
     if (MODE === 'endlos') updateEndless(dt); else updateWaves(dt);
     updateMonsters(dt); updateEyeGlow(); updateProjs(dt); updateAcids(dt); updatePatches(dt); updateBarricades(dt);
-    updatePickups(dt, clock); updateAbilities(dt); updateWeapon(dt, input.firing && winT < 0); updateVM(dt); updateTracers(dt); updateGrenades(dt); updateBars(); updateNums(dt); updateMaras(dt);
+    updatePickups(dt, clock); updateAbilities(dt); updateWeapon(dt, input.firing && winT < 0); updateVM(dt); updateTracers(dt); updateGrenades(dt); updateBars(); updateNums(dt); updateMaras(dt); updateSecrets(dt, clock);
     const a = curArea();
     if (a !== lastArea) { if (lastArea >= 0 || true) showToast(`Gebiet ${a + 1}`, AREAS[a].name); lastArea = a; }
     const A = AREAS[a], tc = new T.Color(A.fog);
@@ -461,7 +479,7 @@ function frame(now) {
   }
   achTick(dt);
   if (AU.ctx) { MU.intense = MODE === 'endlos' ? EN.active : areaSt.some(s => s && s.active); setMusic(pickMusic()); }
-  updateWorld(dt, clock, camera.position); updateAtmos(dt, clock);
+  updateWorld(dt, clock, camera.position); updateAtmos(dt, clock); updateWeather(dt);
   if (moonLight.castShadow) { moonLight.target.position.set(camera.position.x, 0, camera.position.z - 6); moonLight.position.set(camera.position.x - 30, 50, camera.position.z + 14); }
   if (moon) { moon.position.set(camera.position.x - 34, 30, camera.position.z - 66); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu'; }
   PU.uFogD.value = scene.fog.density;

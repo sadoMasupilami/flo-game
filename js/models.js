@@ -100,47 +100,76 @@ function modelDefs(type) {
     d.crown = mergeParts(Array.from({ length: 7 }, (_, i) => { const a = i / 7 * TAU; return [K, Math.cos(a) * 0.55, 6.1, 0.85 + Math.sin(a) * 0.4, 0.14, 0.8, 0.14, Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.5]; }), false);
     d.veins = mergeParts(Array.from({ length: 10 }, (_, i) => [B, Math.sin(i * 1.7) * 1.0, 1.6 + Math.cos(i) * 0.5, -0.8 + Math.cos(i * 2.3) * 1.2, 0.05, 0.05, 1.4, 0, i * 0.6, 0]), false);
     d.eyes = [[-0.25, 5.5, 1.3], [0.25, 5.5, 1.3], [-0.12, 5.72, 1.32], [0.12, 5.72, 1.32], [-0.36, 5.3, 1.22], [0.36, 5.3, 1.22]]; d.eyeS = 0.09;
+  } else if (type === 'platzer') {
+    d.body = seg([[S, 0, 0.7, 0, 1.2, 1.1, 1.2], [S, 0, 1.15, 0.35, 0.4, 0.36, 0.4]],
+      [...[[0.35, 0.95, 0.4], [-0.4, 0.75, 0.38], [0.5, 0.6, -0.1], [-0.2, 1.1, -0.3], [0.1, 0.4, 0.5]].map(([x, y, z]) => [S, x, y, z, 0.12, 0.12, 0.08, 0, 0, 0, DARK]),
+        [B, 0, 1.06, 0.53, 0.18, 0.05, 0.04, 0, 0, 0, MOUTH], ...row(K, 5, -0.07, 0.07, 1.09, 0.55, [0.02, 0.05, 0.02], Math.PI, BONE)]);
+    d.leg = side => seg([], [[C, side * 0.1, -0.12, 0, 0.12, 0.35, 0.12, 0, 0, side * 0.4, DARK]]);
+    d.sacks = [[0.3, 0.9, 0.45, 0.16], [-0.38, 0.7, 0.42, 0.14], [0.45, 0.5, 0.25, 0.12], [-0.1, 1.05, -0.45, 0.15], [0.05, 0.5, -0.55, 0.13]];
+    d.eyes = [[-0.08, 1.22, 0.52], [0.08, 1.22, 0.52]]; d.eyeS = 0.05;
+  } else if (type === 'kraehe') {
+    d.body = seg([[S, 0, 0, 0, 0.32, 0.3, 0.55], [S, 0, 0.08, 0.3, 0.2, 0.2, 0.22]],
+      [[K, 0, 0.06, 0.46, 0.07, 0.18, 0.07, Math.PI / 2, 0, 0, 0x8a7a3a], [B, 0, 0, -0.36, 0.2, 0.03, 0.26, 0, 0, 0, DARK], [K, -0.06, -0.14, 0.05, 0.03, 0.12, 0.03, Math.PI, 0, 0, CLAW], [K, 0.06, -0.14, 0.05, 0.03, 0.12, 0.03, Math.PI, 0, 0, CLAW]]);
+    d.wing = side => seg([[B, side * 0.33, 0, 0, 0.6, 0.03, 0.3]], [...[0, 1, 2].map(i => [B, side * (0.5 + i * 0.08), -0.01, -0.12 + i * 0.03, 0.08, 0.02, 0.28, 0, 0, 0, DARK])]);
+    d.eyes = [[-0.07, 0.12, 0.38], [0.07, 0.12, 0.38]]; d.eyeS = 0.03;
   }
   MODELS[type] = d; return d;
 }
 const DET_MAT = HAS_THREE ? new T.MeshPhongMaterial({ vertexColors: true, shininess: 30, specular: 0x333333 }) : null;
-function addSeg(parent, sg, skin) {
+function addSegM(parent, sg, skin) {
   if (sg.s) { const o = new T.Mesh(sg.s, skin); o.castShadow = true; parent.add(o); }
   if (sg.d) { const o = new T.Mesh(sg.d, DET_MAT); o.castShadow = true; parent.add(o); }
 }
 function buildMonster(type) {
-  const def = MT[type], d = modelDefs(type), g = new T.Group(); g.rotation.order = 'YXZ';
+  const base = type === 'schild' ? 'ghul' : type === 'schatten' ? 'schreier' : type;
+  const def = MT[type], d = modelDefs(base), g = new T.Group(); g.rotation.order = 'YXZ';
+  const shade = type === 'schatten';
   const skin = new T.MeshPhongMaterial({ color: def.skin, map: TX.skin, bumpMap: TX.skin, bumpScale: 0.6, shininess: 18, specular: 0x161616, emissive: 0 });
   const eyeM = mat(def.eye, { basic: true, fog: false });
   const P = { eyes: [] };
-  if (d.body) addSeg(g, d.body, skin);
+  if (shade) { skin.transparent = true; skin.opacity = 0.1; }
+  const addSeg = (p, sg) => addSegM(p, shade ? { s: sg.s, d: null } : sg, skin);
+  if (d.body) addSeg(g, d.body);
   for (const [x, y, z] of d.eyes) P.eyes.push(part(g, G.sphLo, eyeM, x, y, z, d.eyeS * 1.4, d.eyeS * 1.4, d.eyeS));
   P.eyeColor = def.eye;
-  if (type === 'ghul') {
-    P.legs = [-0.13, 0.13].map(x => { const p = pivot(g, x, 0.9, 0); addSeg(p, d.leg, skin); return p; });
-    P.arms = [-0.33, 0.33].map(x => { const p = pivot(g, x, 1.47, 0.1); addSeg(p, d.arm, skin); return p; });
-    P.jaw = pivot(g, 0, 1.62, 0.25); addSeg(P.jaw, d.jaw, skin); P.armBase = -1.25;
+  if (base === 'ghul') {
+    P.legs = [-0.13, 0.13].map(x => { const p = pivot(g, x, 0.9, 0); addSeg(p, d.leg); return p; });
+    P.arms = [-0.33, 0.33].map(x => { const p = pivot(g, x, 1.47, 0.1); addSeg(p, d.arm); return p; });
+    P.jaw = pivot(g, 0, 1.62, 0.25); addSeg(P.jaw, d.jaw); P.armBase = -1.25;
   } else if (type === 'kriecher') {
     P.legs6 = [];
-    for (const side of [-1, 1]) { const lg = d.leg(side); for (const k of [0.35, 0.05, -0.25]) { const p = pivot(g, side * 0.25, 0.48, k); addSeg(p, lg, skin); P.legs6.push(p); } }
+    for (const side of [-1, 1]) { const lg = d.leg(side); for (const k of [0.35, 0.05, -0.25]) { const p = pivot(g, side * 0.25, 0.48, k); addSeg(p, lg); P.legs6.push(p); } }
   } else if (type === 'spucker') {
-    P.legs = [-0.2, 0.2].map(x => { const p = pivot(g, x, 0.55, 0); addSeg(p, d.leg, skin); return p; });
+    P.legs = [-0.2, 0.2].map(x => { const p = pivot(g, x, 0.55, 0); addSeg(p, d.leg); return p; });
     P.body = new T.Mesh(d.belly.s, skin); P.body.position.set(0, 1.0, 0); P.body.scale.set(0.95, 1.0, 0.85); P.body.castShadow = true; g.add(P.body); P.bodyS = P.body.scale.clone();
     const sac = mat(0x5aff3a, { basic: true }); P.sacks = d.sacks.map(([x, y, z, s]) => { const o = part(g, G.sph, sac, x, y, z, s, s, s); o.userData.s0 = s; return o; });
-    P.arms = [-0.45, 0.45].map(x => { const p = pivot(g, x, 1.2, 0.1); addSeg(p, d.arm, skin); return p; }); P.armBase = -0.6;
+    P.arms = [-0.45, 0.45].map(x => { const p = pivot(g, x, 1.2, 0.1); addSeg(p, d.arm); return p; }); P.armBase = -0.6;
   } else if (type === 'koloss') {
-    P.legs = [-0.38, 0.38].map(x => { const p = pivot(g, x, 1.2, 0); addSeg(p, d.leg, skin); return p; });
-    P.arms = [-0.92, 0.92].map(x => { const p = pivot(g, x, 2.45, 0.1); addSeg(p, d.arm, skin); return p; }); P.armBase = -0.35;
-  } else if (type === 'schreier') {
-    P.legs = [-0.12, 0.12].map(x => { const p = pivot(g, x, 0.95, 0); addSeg(p, d.leg, skin); return p; });
-    P.arms = [-0.22, 0.22].map(x => { const p = pivot(g, x, 1.6, 0.05); addSeg(p, d.arm, skin); return p; }); P.armBase = -0.5;
+    P.legs = [-0.38, 0.38].map(x => { const p = pivot(g, x, 1.2, 0); addSeg(p, d.leg); return p; });
+    P.arms = [-0.92, 0.92].map(x => { const p = pivot(g, x, 2.45, 0.1); addSeg(p, d.arm); return p; }); P.armBase = -0.35;
+  } else if (base === 'schreier') {
+    P.legs = [-0.12, 0.12].map(x => { const p = pivot(g, x, 0.95, 0); addSeg(p, d.leg); return p; });
+    P.arms = [-0.22, 0.22].map(x => { const p = pivot(g, x, 1.6, 0.05); addSeg(p, d.arm); return p; }); P.armBase = -0.5;
+  } else if (type === 'platzer') {
+    P.legs6 = [];
+    for (const side of [-1, 1]) { const lg = d.leg(side); for (const k of [0.3, -0.3]) { const p = pivot(g, side * 0.45, 0.3, k); addSeg(p, lg); P.legs6.push(p); } }
+    const glow = mat(0xffb030, { basic: true }); P.sacks = d.sacks.map(([x, y, z, s]) => { const o = part(g, G.sph, glow, x, y, z, s, s, s); o.userData.s0 = s; return o; });
+  } else if (type === 'kraehe') {
+    P.wings = [-1, 1].map(side => { const p = pivot(g, side * 0.12, 0.05, 0); addSeg(p, d.wing(side)); return p; });
   } else if (type === 'koenigin') {
     const glow = mat(0xd25cff, { basic: true, fog: false });
     P.core = part(g, G.sph, glow, 0, 3.9, 1.18, 0.45, 0.45, 0.3);
     g.add(new T.Mesh(d.crown, glow)); g.add(new T.Mesh(d.veins, mat(0x9a3cff, { basic: true })));
     P.legs6 = [];
-    for (const side of [-1, 1]) { const lg = d.leg(side); for (const k of [-1.4, -0.4, 0.6]) { const p = pivot(g, side * 1.1, 1.8, k); addSeg(p, lg, skin); P.legs6.push(p); } }
-    P.arms = [[-0.8, 4.7], [0.8, 4.7], [-0.75, 4.1], [0.75, 4.1]].map(([x, y]) => { const p = pivot(g, x, y, 0.8); addSeg(p, d.arm, skin); return p; }); P.armBase = -0.6;
+    for (const side of [-1, 1]) { const lg = d.leg(side); for (const k of [-1.4, -0.4, 0.6]) { const p = pivot(g, side * 1.1, 1.8, k); addSeg(p, lg); P.legs6.push(p); } }
+    P.arms = [[-0.8, 4.7], [0.8, 4.7], [-0.75, 4.1], [0.75, 4.1]].map(([x, y]) => { const p = pivot(g, x, y, 0.8); addSeg(p, d.arm); return p; }); P.armBase = -0.6;
+  }
+  if (type === 'schild') { // rostige Autotür als Schild vor dem Körper
+    const sh = new T.Group(); sh.position.set(-0.05, 1.12, 0.52); g.add(sh);
+    const plate = new T.Mesh(G.box, tmat('metal', 0x9a8a78, 1, 1, { bump: 0.6, sh: 30 })); plate.scale.set(0.95, 1.35, 0.08); plate.castShadow = true; sh.add(plate);
+    sh.add(new T.Mesh(mergeParts([[G.box, 0, 0, 0.05, 0.98, 0.08, 0.04, 0, 0, 0, PLATE], [G.box, 0, 0.4, 0.05, 0.98, 0.08, 0.04, 0, 0, 0, PLATE], [G.box, 0, -0.4, 0.05, 0.98, 0.08, 0.04, 0, 0, 0, PLATE],
+      ...[[-0.3, 0.3], [0.3, 0.3], [-0.3, -0.3], [0.3, -0.3], [0, 0]].map(([x, y]) => [G.cone, x, y, 0.1, 0.08, 0.2, 0.08, Math.PI / 2, 0, 0, BONE])], true), DET_MAT));
+    P.armBase = -0.35;
   }
   return { g, P, skin };
 }

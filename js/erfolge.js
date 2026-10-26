@@ -14,6 +14,8 @@ const ERFOLGE = [
   { id: 'sammler', name: 'Sammler', desc: 'Besitze alle 11 Waffen.', stat: 'weapons', goal: 11 },
   { id: 'max', name: 'Voll aufgerüstet', desc: 'Bring eine Waffe auf Stufe 4.', stat: 'maxLv', goal: 4 },
   { id: 'bosse', name: 'Bosskiller', desc: 'Besiege alle 5 Zwischenbosse.', stat: 'minis', goal: 5 },
+  { id: 'schatz', name: 'Schatzsucher', desc: 'Finde alle 12 versteckten Truhen.', stat: 'chests', goal: 12 },
+  { id: 'chronist', name: 'Opas Tagebuch', desc: 'Finde alle 6 Notizen von Opa.', stat: 'notes', goal: 6 },
   { id: 'unberuehrt', name: 'Unberührbar', desc: 'Besiege einen Zwischenboss, ohne getroffen zu werden.' },
   { id: 'portal', name: 'Portal geschlossen', desc: 'Besiege die Monsterkönigin.' },
   { id: 'makellos', name: 'Makellos', desc: 'Besiege die Monsterkönigin, ohne getroffen zu werden.' },

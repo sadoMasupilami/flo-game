@@ -2,7 +2,7 @@
 'use strict';
 let MODE = 'story';   // story | endlos
 const EN = { wave: 0, active: false, queue: [], spawnT: 0, breakT: 0 };
-const EN_ALL = ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier'];
+const EN_ALL = ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier', 'platzer', 'kraehe', 'schild', 'schatten'];
 
 function endlessBest() { return ACH.st.endlessBest || 0; }
 function endlessTag() { return 'E' + EN.wave; }
@@ -49,7 +49,7 @@ function updateEndless(dt) {
         $('bossName').textContent = MT.koenigin.name; $('bossbar').hidden = false; AU.play('roar');
       } else {
         const p = endlessSpawnPos();
-        spawnMonster(q.t, p[0], p[1], { area: 5, elite: q.elite, mini: q.mini, wa: 'E', wj: endlessTag(), mult });
+        spawnGroup(q.t, p[0], p[1], { area: 5, elite: q.elite, mini: q.mini, wa: 'E', wj: endlessTag(), mult });
       }
       EN.spawnT = rand(0.4, 0.75);
     }

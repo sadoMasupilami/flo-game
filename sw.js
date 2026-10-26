@@ -13,11 +13,13 @@ const FILES = [
   'js/music.js',
   'js/world.js',
   'js/atmos.js',
+  'js/wetter.js',
   'js/models.js',
   'js/entities.js',
   'js/combat.js',
   'js/viewmodels.js',
   'js/erfolge.js',
+  'js/geheimnisse.js',
   'js/endlos.js',
   'js/main.js',
 ];

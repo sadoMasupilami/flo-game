@@ -141,6 +141,45 @@ function checkOfflineList() {
       await until(() => $('say').classList.contains('show') && $('sayText').textContent.length > 5);
     });
 
+    await step('Neue Monster: Krähen fliegen, Schild blockt, Platzer explodiert, Schatten ist unsichtbar', async () => {
+      await ev(() => { clearMonsters(); player.pos.set(0, 0, -300); player.hp = player.maxHp; player.inv = 99;
+        for (const [t, x, z] of [['platzer', -3, -309], ['schild', 0.5, -310], ['schatten', 3, -318]]) { const m = spawnMonster(t, x, z, { area: 2 }); m.spd = 0; m.cd = 99; m.state = 'chase'; m.g.position.y = 0; }
+        spawnGroup('kraehe', 0, -312, { area: 2 }); });
+      await page.waitForTimeout(1500);
+      const r = await ev(() => {
+        const s = monsters.find(m => m.type === 'schild'); s.g.rotation.y = Math.atan2(player.pos.x - s.g.position.x, player.pos.z - s.g.position.z);
+        const h0 = s.hp; damageMonster(s, 100, null, false, 0); const front = h0 - s.hp;
+        const p = monsters.find(m => m.type === 'platzer'); damageMonster(p, 1e6, null, false);
+        return { crows: monsters.filter(m => m.type === 'kraehe' && m.g.position.y > 1.5).length, front, burst: !!p.burst, shadow: monsters.find(m => m.type === 'schatten').vis };
+      });
+      check(r.crows === 4, 'Krähen fliegen nicht: ' + JSON.stringify(r));
+      check(r.front < 20, 'Schild blockt nicht: ' + JSON.stringify(r));
+      check(r.burst, 'Platzer ist nicht explodiert');
+      check(r.shadow < 0.3, 'Schatten ist zu sichtbar: ' + JSON.stringify(r));
+      await ev(() => { clearMonsters(); player.inv = 0; });
+    });
+
+    await step('Gewitter, Truhe und Opas Notiz', async () => {
+      await ev(() => strike());
+      check(await ev(() => lightningT > 0 && rainAmt >= 0), 'Blitz hat nicht ausgelöst');
+      const before = await ev(() => { const c = chests.find(c => !SV.chests[c.id]); player.pos.set(c.x + 1, 0, c.z); return SV.money; });
+      await until(() => Object.keys(SV.chests).length > 0);
+      check(await ev(() => SV.money) > before, 'Truhe hat keine Münzen gegeben');
+      await ev(() => { const n = notes.find(n => !SV.notes[n.id]); player.pos.set(n.x + 0.5, 0, n.z); });
+      await until(() => GS === 'story');
+      await page.click('#storyBtn'); await until(() => GS === 'play');
+    });
+
+    await step('Ausrüstung kaufen und Spezialkraft auf Stufe 4', async () => {
+      await ev(() => { SV.money = 99999; SV.seen[1] = 1; openShelter(1); });
+      await page.click('#tabG'); await page.click('[data-gear="ruestung"]');
+      check(await ev(() => player.maxHp) === 125, 'Rüstung erhöht das Leben nicht');
+      await page.click('#btnLeave'); await until(() => GS === 'play');
+      await ev(() => { player.pos.set(0, 0, -150); SV.weapons.eisen = 4; SV.cur = 'eisen'; equipVM('eisen'); swapT = 0; fireCd = 0; });
+      await page.keyboard.down('Space'); await page.waitForTimeout(300); await page.keyboard.up('Space');
+      check(await ev(() => projs.some(p => p.wave)), 'Klingenwelle wurde nicht geworfen');
+    });
+
     await step('Erfolge werden freigeschaltet und angezeigt', async () => {
       check(await ev(() => !!(ACH.got.blut && ACH.got.portal)), 'Erfolge „Erstes Blut“ oder „Portal geschlossen“ fehlen');
       await ev(() => showMenu());

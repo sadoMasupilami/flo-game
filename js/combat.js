@@ -2,7 +2,7 @@
 'use strict';
 const barricades = [], projs = [], acids = [], patches = [], pickups = [], decals = [], tracers = [], grenades = [];
 const abCd = [0, 0, 0, 0], abOn = [0, 0, 0, 0];
-let fireCd = 0, vmKick = 0, vmSwing = 0, swapT = 0, muzzleT = 0, patchCd = 0, flameOn = false, grenCd = 0, tracerCol = 0xffd27a;
+let axtCount = 0, fireCd = 0, vmKick = 0, vmSwing = 0, swapT = 0, muzzleT = 0, patchCd = 0, flameOn = false, grenCd = 0, tracerCol = 0xffd27a;
 const vmModels = {};
 let vm = null;
 const _o = HAS_THREE ? new T.Vector3() : null, _d = HAS_THREE ? new T.Vector3() : null, _c = HAS_THREE ? new T.Vector3() : null, _m = HAS_THREE ? new T.Vector3() : null;
@@ -90,7 +90,7 @@ function updatePickups(dt, t) {
     const p = pickups[i]; p.t -= dt; p.g.rotation.y += dt * 1.6; p.g.position.y = 0.45 + Math.sin(t * 3 + i) * 0.08;
     const gr = p.kind === 'gren', near = Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 1.3;
     if (Math.random() < dt * 4) PG.emit(p.x, 0.6, p.z, 0, 0.6, 0, 0.8, gr ? 0.5 : 0.9, gr ? 0.9 : 0.2, 0.2, 0.15, 0, 0, 0, 0.7);
-    if (near && gr && SV.gren < GREN_MAX) { SV.gren++; AU.play('coin'); showMsg('+1 Granate'); scene.remove(p.g); pickups.splice(i, 1); continue; }
+    if (near && gr && SV.gren < grenMax()) { SV.gren++; AU.play('coin'); showMsg('+1 Granate'); scene.remove(p.g); pickups.splice(i, 1); continue; }
     if (near && !gr && player.hp < player.maxHp) {
       player.hp = Math.min(player.maxHp, player.hp + 22); healFx(); AU.play('heal'); showMsg('+22 Leben');
       scene.remove(p.g); pickups.splice(i, 1); continue;
@@ -154,7 +154,7 @@ function explode(p, dmg, R, patch) {
   for (const m of monsters.slice()) {
     if (m.state === 'dead') continue;
     const d = Math.hypot(m.g.position.x - p.x, m.g.position.z - p.z) - m.r;
-    if (d < R) { launchMonster(m, p.x, p.z, 14 * (1 - Math.max(0, d) / R) + 3); _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); if (damageMonster(m, dmg * (1 - 0.6 * Math.max(0, d) / R), _c, false)) killed++; }
+    if (d < R) { launchMonster(m, p.x, p.z, 14 * (1 - Math.max(0, d) / R) + 3); _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); if (damageMonster(m, dmg * (1 - 0.6 * Math.max(0, d) / R), _c, false, 0, 'expl')) killed++; }
   }
   achMax('multi', killed);
 }
@@ -165,14 +165,39 @@ function projMesh(kind) {
   const g = new T.Group();
   if (kind === 'arrow') { part(g, G.box, mat(0x8a6038), 0, 0, 0, 0.02, 0.02, 0.62); part(g, G.cone, mat(0x9a9ca0), 0, 0, 0.33, 0.035, 0.08, 0.035).rotation.x = Math.PI / 2; part(g, G.box, mat(0xb03030), 0, 0, -0.28, 0.08, 0.005, 0.1); }
   else if (kind === 'bolt') { part(g, G.box, mat(0x4a4a4e), 0, 0, 0, 0.035, 0.035, 0.42); part(g, G.cone, mat(0xb8bcc4), 0, 0, 0.24, 0.05, 0.1, 0.05).rotation.x = Math.PI / 2; }
+  else if (kind === 'wave') { const a = new T.Mesh(new T.TorusGeometry(0.7, 0.06, 4, 18, Math.PI), new T.MeshBasicMaterial({ color: LV_HEX[3], transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false })); a.rotation.x = Math.PI / 2; g.add(a); }
   else if (kind === 'rocket') { part(g, G.cyl, mat(0x4a5038), 0, 0, 0, 0.12, 0.6, 0.12).rotation.x = Math.PI / 2; part(g, G.cone, mat(0x8a1a14), 0, 0, 0.38, 0.12, 0.18, 0.12).rotation.x = Math.PI / 2; part(g, G.sphLo, mat(0xffb040, { basic: true }), 0, 0, -0.32, 0.12, 0.12, 0.12); }
   return g;
 }
-function spawnProj(w, dmg, dir) {
+function spawnProj(w, dmg, dir, opt) {
   const mesh = projMesh(w.proj); muzzleWorld(_m);
   mesh.position.copy(camera.position).addScaledVector(dir, 0.6); mesh.position.y -= 0.1;
   scene.add(mesh);
-  projs.push({ mesh, vel: dir.clone().multiplyScalar(w.speed), grav: w.grav || 0, dmg, pierce: w.pierce || 0, hit: new Set(), life: w.kind === 'rocket' ? 4 : 3, rocket: w.kind === 'rocket', splash: w.splash || 0, stuck: 0, kb: w.kb || 0 });
+  projs.push(Object.assign({ mesh, vel: dir.clone().multiplyScalar(w.speed), grav: w.grav || 0, dmg, pierce: w.pierce || 0, hit: new Set(), life: w.kind === 'rocket' ? 4 : 3, rocket: w.kind === 'rocket', splash: w.splash || 0, stuck: 0, kb: w.kb || 0 }, opt || {}));
+}
+// Spezialkräfte auf Stufe 4
+function spawnWave(dmg) {
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), mesh = projMesh('wave');
+  mesh.position.set(player.pos.x + fx * 0.8, 1.1, player.pos.z + fz * 0.8); scene.add(mesh);
+  projs.push({ mesh, vel: new T.Vector3(fx * 20, 0, fz * 20), grav: 0, dmg, pierce: 99, hit: new Set(), life: 0.6, wave: true, stuck: 0, kb: 4 });
+}
+function groundSlam(dmg) {
+  const px = player.pos.x, pz = player.pos.z;
+  for (const m of monsters.slice()) { if (m.state === 'dead') continue; const d = Math.hypot(m.g.position.x - px, m.g.position.z - pz) - m.r; if (d < 4.2) { _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); damageMonster(m, dmg, _c, false, 6); } }
+  for (let i = 0; i < 24; i++) { const a = i / 24 * TAU; smokePuff(px + Math.cos(a) * 2.5, 0.1, pz + Math.sin(a) * 2.5, 1, 0.2); }
+  fxRing(px, pz, LV_HEX[3], 4.2); shake = Math.max(shake, 0.35); AU.play('boom', 0.1);
+}
+function homeIn(p, dt) {
+  let best = null, bd = 1e9; const pos = p.mesh.position, v = _d.copy(p.vel).normalize();
+  for (const m of monsters) {
+    if (m.state === 'dead') continue;
+    _c.set(m.g.position.x - pos.x, m.g.position.y + m.sc - pos.y, m.g.position.z - pos.z);
+    const L = _c.length(); if (L > 35 || L < 0.5) continue;
+    if (_c.divideScalar(L).dot(v) < 0.55) continue;
+    if (L < bd) { bd = L; best = _c.clone(); }
+  }
+  if (!best) return;
+  const sp = p.vel.length(); p.vel.normalize().addScaledVector(best, dt * 3.5).normalize().multiplyScalar(sp);
 }
 function endProj(i) { const p = projs[i]; scene.remove(p.mesh); projs.splice(i, 1); }
 function updateProjs(dt) {
@@ -181,6 +206,7 @@ function updateProjs(dt) {
     const p = projs[i];
     if (p.stuck > 0) { p.stuck -= dt; if (p.stuck <= 0) endProj(i); continue; }
     p.life -= dt; if (p.life <= 0) { if (p.rocket) explode(p.mesh.position, p.dmg, p.splash); endProj(i); continue; }
+    if (p.homing) homeIn(p, dt);
     p.vel.y -= p.grav * dt; from.copy(p.mesh.position); to.copy(from).addScaledVector(p.vel, dt);
     let done = false;
     for (const m of monsters) {
@@ -188,10 +214,11 @@ function updateProjs(dt) {
       const gp = m.g.position; if (Math.abs(gp.x - to.x) > 6 || Math.abs(gp.z - to.z) > 6) continue;
       for (const h of m.hits) {
         _c.set(gp.x, gp.y + h[0] * m.sc, gp.z);
-        if (segSphere(from, to, _c, h[1] * m.sc + (p.rocket ? 0.2 : 0.05))) {
+        if (segSphere(from, to, _c, h[1] * m.sc + (p.rocket ? 0.2 : p.wave ? 0.6 : 0.05))) {
           p.hit.add(m);
           if (p.rocket) { explode(to, p.dmg, p.splash); done = true; }
-          else { damageMonster(m, p.dmg * (h[2] ? 1.6 : 1), to, !!h[2], p.kb); if (p.pierce-- <= 0) done = true; }
+          else if (p.boom) { explode(to, p.dmg * 0.6, 2.5, false); damageMonster(m, p.dmg * 0.4, to, !!h[2], p.kb); done = true; }
+          else { damageMonster(m, p.dmg * (h[2] ? 1.6 : 1), to, !!h[2], p.kb); if (p.fire) applyBurn(m, p.dmg * 0.4, 3); if (p.pierce-- <= 0) done = true; }
           break;
         }
       }
@@ -202,12 +229,18 @@ function updateProjs(dt) {
       if (!hitWall) for (const s of solids) if (!s.off && inBox(to, s)) { hitWall = true; break; }
       if (hitWall) {
         if (p.rocket) explode(to, p.dmg, p.splash);
-        else { sparks(to.x, Math.max(0.05, to.y), to.z, 4, 0.8, 0.7, 0.5); if (brandOn() && patchCd <= 0) { addPatch(to.x, to.z, 1.2, 3); patchCd = 0.3; } p.mesh.position.copy(to); p.stuck = 1.5; continue; }
+        else if (p.boom) explode(to, p.dmg * 0.6, 2.5, false);
+        else if (p.wave) { smokePuff(to.x, 0.2, to.z, 4, 0.2); }
+        else {
+          if (p.fire) addPatch(to.x, to.z, 1.4, 3); sparks(to.x, Math.max(0.05, to.y), to.z, 4, 0.8, 0.7, 0.5); if (brandOn() && patchCd <= 0) { addPatch(to.x, to.z, 1.2, 3); patchCd = 0.3; } p.mesh.position.copy(to); p.stuck = 1.5; continue; }
         done = true;
       }
     }
     if (done) { endProj(i); continue; }
     p.mesh.position.copy(to); _c.copy(to).add(p.vel); p.mesh.lookAt(_c);
+    if (p.wave && Math.random() < 0.9) PG.emit(to.x + rand(-0.5, 0.5), to.y, to.z + rand(-0.5, 0.5), 0, 0.3, 0, 0.3, 1, 0.25, 0.3, 0.12, 0, 0, 0, 1);
+    if (p.fire && Math.random() < 0.7) PF.emit(to.x, to.y, to.z, 0, 0.3, 0, 0.25, 1, 0.5, 0.1, 0.12, 0, -0.5, 0, 1);
+    if (p.boom && Math.random() < 0.5) PG.emit(to.x, to.y, to.z, 0, 0, 0, 0.2, 1, 0.3, 0.2, 0.08, 0, 0, 0, 1);
     if (p.rocket && Math.random() < 0.8) { PS.emit(from.x, from.y, from.z, rand(-0.3, 0.3), rand(0, 0.4), rand(-0.3, 0.3), rand(0.5, 0.9), 0.3, 0.3, 0.3, 0.25, 0, 2.5, 1, 0.5); PF.emit(from.x, from.y, from.z, 0, 0, 0, 0.1, 1, 0.6, 0.2, 0.25, 0, -0.5, 0, 1); }
   }
 }
@@ -247,59 +280,82 @@ function doFire(w, lv) {
   tracerCol = lv > 1 ? LV_HEX[lv - 1] : 0xffd27a;
   camera.getWorldDirection(_d);
   const o = camera.position;
+  const sp4 = lv === 4;
   if (w.kind === 'melee') {
     vmSwing = 1; AU.play('swing', 0.05);
+    const all = sp4 && w.id === 'holz';
     const fx = _d.x, fz = _d.z, fl = Math.hypot(fx, fz) || 1; let hits = 0;
     for (const m of monsters.slice()) {
       if (m.state === 'dead') continue;
       const dx = m.g.position.x - o.x, dz = m.g.position.z - o.z, dist = Math.hypot(dx, dz);
       if (dist - m.r > w.range) continue;
-      if ((dx * fx + dz * fz) / (dist * fl || 1) < w.arc && dist > m.r + 0.3) continue;
+      if (!all && (dx * fx + dz * fz) / (dist * fl || 1) < w.arc && dist > m.r + 0.3) continue;
       _c.set(m.g.position.x - dx / dist * m.r * 0.6, Math.min(player.eye - 0.3, m.g.position.y + m.sc * 1.1), m.g.position.z - dz / dist * m.r * 0.6);
       damageMonster(m, dmg, _c, false, w.kb); hits++;
     }
     if (hits) { AU.play('thud', 0.05); shake = Math.max(shake, 0.06); }
+    if (all) fxRing(player.pos.x, player.pos.z, LV_HEX[3], 2.6);
+    if (sp4 && w.id === 'eisen') spawnWave(dmg * 0.7);
+    if (sp4 && w.id === 'axt' && ++axtCount % 3 === 0) groundSlam(dmg);
   } else if (w.kind === 'hitscan') {
-    const base = aimAssist(_d, w.range);
-    for (let i = 0; i < w.pellets; i++) {
-      const d = base.clone(); d.x += rand(-1, 1) * w.spread; d.y += rand(-1, 1) * w.spread; d.z += rand(-1, 1) * w.spread; d.normalize();
-      hitscan(o, d, dmg, w.range, w.kb / w.pellets);
+    const base = aimAssist(_d, w.range), n = w.pellets * (sp4 && w.id === 'pistole' ? 2 : 1), spr = w.spread * (n > w.pellets ? 2 : 1);
+    const opt = { burn: sp4 && w.id === 'schrot', pierce: sp4 && w.id === 'gewehr' ? 3 : 1 };
+    for (let i = 0; i < n; i++) {
+      const d = base.clone(); d.x += rand(-1, 1) * spr; d.y += rand(-1, 1) * spr; d.z += rand(-1, 1) * spr; d.normalize();
+      hitscan(o, d, dmg, w.range, w.kb / w.pellets, opt);
     }
     vmKick = w.id === 'schrot' ? 1.4 : 0.8; flashMuzzle(w.id === 'schrot' ? 1.4 : 1);
     AU.play(w.id === 'schrot' ? 'shotgun' : w.id === 'gewehr' ? 'rifle' : 'pistol', 0.03);
   } else if (w.kind === 'proj' || w.kind === 'rocket') {
     const d = aimAssist(_d, 60);
     if (w.grav) d.y += w.grav * 0.006;
-    spawnProj(w, dmg, d.normalize());
+    d.normalize();
+    const opt = sp4 ? { fire: w.id === 'bogen', boom: w.id === 'armbrust', homing: w.id === 'rakete' } : null;
+    spawnProj(w, dmg, d, opt);
+    if (sp4 && w.id === 'schleuder') for (const a of [-0.08, 0.08]) { const c = Math.cos(a), s = Math.sin(a); spawnProj(w, dmg, new T.Vector3(d.x * c - d.z * s, d.y, d.x * s + d.z * c)); }
     vmKick = w.kind === 'rocket' ? 1.6 : 0.6;
     if (w.kind === 'rocket') { flashMuzzle(1.5); AU.play('rocket'); } else AU.play(w.id === 'schleuder' ? 'sling' : 'bow', 0.05);
   } else if (w.kind === 'flame') {
-    const tick = dmg / w.rate; muzzleWorld(_m);
+    const tick = dmg / w.rate, range = w.range * (sp4 ? 1.4 : 1); muzzleWorld(_m);
     for (let i = 0; i < 4; i++) { const s = rand(7, 12); PF.emit(_m.x, _m.y, _m.z, _d.x * s + rand(-1, 1), _d.y * s + rand(-0.6, 1), _d.z * s + rand(-1, 1), rand(0.4, 0.6), 1, rand(0.35, 0.65), 0.12, rand(0.15, 0.3), -1, 3, 1.4, 1); }
     for (const m of monsters.slice()) {
       if (m.state === 'dead') continue;
       _c.set(m.g.position.x - o.x, m.g.position.y + m.sc - o.y, m.g.position.z - o.z);
-      const L = _c.length(); if (L - m.r > w.range) continue;
+      const L = _c.length(); if (L - m.r > range) continue;
       if (_c.divideScalar(L).dot(_d) < w.cone && L > m.r + 0.5) continue;
-      damageMonster(m, tick, null, false); applyBurn(m, dmg * 0.25, 2.5);
+      damageMonster(m, tick, null, false, 0, 'fire'); applyBurn(m, dmg * 0.25, 2.5);
       if (Math.random() < 0.15) bloodBurst(m.g.position.x, m.g.position.y + m.sc, m.g.position.z, 2);
     }
-    if (brandOn() && patchCd <= 0 && _d.y < 0) { const t = Math.min(w.range, -o.y / _d.y); addPatch(o.x + _d.x * t, o.z + _d.z * t, 1.3, 3); patchCd = 0.35; }
+    if ((brandOn() || sp4) && patchCd <= 0 && _d.y < 0) { const t = Math.min(range, -o.y / _d.y); addPatch(o.x + _d.x * t, o.z + _d.z * t, 1.3, 3); patchCd = 0.35; }
     muzzleLight.intensity = 1.6; muzzleT = 0.06;
   }
 }
-function hitscan(o, d, dmg, range, kb) {
-  let best = range, bm = null, head = false, what = 0;
+function hitscan(o, d, dmg, range, kb, opt) {
+  opt = opt || {};
+  // Wand oder Boden begrenzen den Schuss
+  let wall = range, what = 0;
+  for (const s of solids) { if (s.off) continue; const t = rayBox(o, d, s); if (t >= 0 && t < wall) { wall = t; what = 2; } }
+  if (d.y < 0) { const t = -o.y / d.y; if (t < wall) { wall = t; what = 2; } }
+  // alle getroffenen Monster davor, nach Entfernung sortiert
+  const hits = [];
   for (const m of monsters) {
     if (m.state === 'dead') continue;
-    const gp = m.g.position, along = (gp.x - o.x) * d.x + (gp.z - o.z) * d.z; if (along < -3 || along > best + 3) continue;
-    for (const h of m.hits) { _c.set(gp.x, gp.y + h[0] * m.sc, gp.z); const t = raySphere(o, d, _c, h[1] * m.sc); if (t >= 0 && t < best) { best = t; bm = m; head = !!h[2]; what = 1; } }
+    const gp = m.g.position, along = (gp.x - o.x) * d.x + (gp.z - o.z) * d.z; if (along < -3 || along > wall + 3) continue;
+    let bt = wall, hd = false;
+    for (const h of m.hits) { _c.set(gp.x, gp.y + h[0] * m.sc, gp.z); const t = raySphere(o, d, _c, h[1] * m.sc); if (t >= 0 && t < bt) { bt = t; hd = !!h[2]; } }
+    if (bt < wall) hits.push({ m, t: bt, head: hd });
   }
-  for (const s of solids) { if (s.off) continue; const t = rayBox(o, d, s); if (t >= 0 && t < best) { best = t; bm = null; what = 2; } }
-  if (d.y < 0) { const t = -o.y / d.y; if (t < best) { best = t; bm = null; what = 2; } }
-  const hp = o.clone().addScaledVector(d, best);
-  if (bm) damageMonster(bm, dmg * (head ? 1.6 : 1), hp, head, kb);
-  else if (what === 2) { sparks(hp.x, hp.y + 0.02, hp.z, 3, 1, 0.8, 0.5); if (brandOn() && patchCd <= 0) { addPatch(hp.x, hp.z, 1.2, 3); patchCd = 0.25; } }
+  hits.sort((a, b) => a.t - b.t);
+  const n = Math.min(hits.length, opt.pierce || 1);
+  let end = wall;
+  for (let i = 0; i < n; i++) {
+    const h = hits[i], hp = o.clone().addScaledVector(d, h.t);
+    damageMonster(h.m, dmg * (h.head ? 1.6 : 1), hp, h.head, kb);
+    if (opt.burn) applyBurn(h.m, dmg * 0.5, 3);
+    end = h.t;
+  }
+  const hp = o.clone().addScaledVector(d, end);
+  if (!n && what === 2) { sparks(hp.x, hp.y + 0.02, hp.z, 3, 1, 0.8, 0.5); if (brandOn() && patchCd <= 0) { addPatch(hp.x, hp.z, 1.2, 3); patchCd = 0.25; } }
   tracer(muzzleWorld(_m), hp, tracerCol);
 }
 function updateWeapon(dt, firing) {

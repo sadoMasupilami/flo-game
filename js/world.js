@@ -416,7 +416,8 @@ function buildWorld() {
   buildHof(); buildWald(); buildDorf(); buildAutobahn(); buildVorstadt(); buildStadt();
   for (let i = 0; i < 6; i++) buildShelter(i);
   for (let a = 0; a < 5; a++) buildBarrier(a);
-  buildSky(); buildMist();
+  buildSecrets();
+  buildSky(); buildMist(); buildRain();
   moon = new T.Mesh(G.sph, new T.MeshBasicMaterial({ color: 0xcfd6e0, fog: false })); moon.scale.setScalar(5); scene.add(moon);
   const mg = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: TEX.glow, color: 0x6a7a9a, transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
   mg.scale.set(30, 30, 1); moon.add(mg); mg.position.z = 0.6; mg.scale.set(4, 4, 1);
