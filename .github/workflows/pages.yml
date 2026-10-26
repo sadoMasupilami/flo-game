@@ -1,0 +1,38 @@
+# Veröffentlicht das Spiel auf GitHub Pages.
+# index.html enthält nur den Seiteninhalt (so braucht es auch die Claude-Version);
+# hier wird er in ein vollständiges HTML-Dokument mit Kopfbereich und App-Manifest gepackt.
+name: GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seite zusammenbauen
+        run: |
+          mkdir -p _site
+          cp -r js icons manifest.webmanifest _site/
+          { cat pages/head.html; cat index.html; printf '\n</body>\n</html>\n'; } > _site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
