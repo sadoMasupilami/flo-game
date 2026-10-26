@@ -41,7 +41,7 @@ function placeBarricade(lv) {
     placed++;
   }
   while (barricades.length > 14) destroyBarricade(barricades[0], true);
-  if (placed) AU.play('build');
+  if (placed) { AU.play('build'); achAdd('blocks', placed); }
   return placed > 0;
 }
 function destroyBarricade(b, quiet) {
@@ -151,11 +151,13 @@ function explode(p, dmg, R, patch) {
   smokePuff(p.x, p.y, p.z, 22, 0.2); sparks(p.x, p.y + 0.3, p.z, 30, 1, 0.8, 0.4);
   addDecal(p.x, p.z, R * 0.9, 0x0e0c0b); if (patch !== false) addPatch(p.x, p.z, 1.6, 2.5);
   AU.play('boom', 0.05); const dd = p.distanceTo(camera.position); shake = Math.max(shake, clamp(1 - dd / 30, 0, 0.8));
+  let killed = 0;
   for (const m of monsters.slice()) {
     if (m.state === 'dead') continue;
     const d = Math.hypot(m.g.position.x - p.x, m.g.position.z - p.z) - m.r;
-    if (d < R) { _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); damageMonster(m, dmg * (1 - 0.6 * Math.max(0, d) / R), _c, false); }
+    if (d < R) { launchMonster(m, p.x, p.z, 14 * (1 - Math.max(0, d) / R) + 3); _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); if (damageMonster(m, dmg * (1 - 0.6 * Math.max(0, d) / R), _c, false)) killed++; }
   }
+  achMax('multi', killed);
 }
 
 // ---------- Geschosse ----------
@@ -171,7 +173,7 @@ function spawnProj(w, dmg, dir) {
   const mesh = projMesh(w.proj); muzzleWorld(_m);
   mesh.position.copy(camera.position).addScaledVector(dir, 0.6); mesh.position.y -= 0.1;
   scene.add(mesh);
-  projs.push({ mesh, vel: dir.clone().multiplyScalar(w.speed), grav: w.grav || 0, dmg, pierce: w.pierce || 0, hit: new Set(), life: w.kind === 'rocket' ? 4 : 3, rocket: w.kind === 'rocket', splash: w.splash || 0, stuck: 0 });
+  projs.push({ mesh, vel: dir.clone().multiplyScalar(w.speed), grav: w.grav || 0, dmg, pierce: w.pierce || 0, hit: new Set(), life: w.kind === 'rocket' ? 4 : 3, rocket: w.kind === 'rocket', splash: w.splash || 0, stuck: 0, kb: w.kb || 0 });
 }
 function endProj(i) { const p = projs[i]; scene.remove(p.mesh); projs.splice(i, 1); }
 function updateProjs(dt) {
@@ -190,7 +192,7 @@ function updateProjs(dt) {
         if (segSphere(from, to, _c, h[1] * m.sc + (p.rocket ? 0.2 : 0.05))) {
           p.hit.add(m);
           if (p.rocket) { explode(to, p.dmg, p.splash); done = true; }
-          else { damageMonster(m, p.dmg * (h[2] ? 1.6 : 1), to, !!h[2]); if (p.pierce-- <= 0) done = true; }
+          else { damageMonster(m, p.dmg * (h[2] ? 1.6 : 1), to, !!h[2], p.kb); if (p.pierce-- <= 0) done = true; }
           break;
         }
       }
@@ -255,14 +257,14 @@ function doFire(w, lv) {
       if (dist - m.r > w.range) continue;
       if ((dx * fx + dz * fz) / (dist * fl || 1) < w.arc && dist > m.r + 0.3) continue;
       _c.set(m.g.position.x - dx / dist * m.r * 0.6, Math.min(player.eye - 0.3, m.g.position.y + m.sc * 1.1), m.g.position.z - dz / dist * m.r * 0.6);
-      damageMonster(m, dmg, _c, false); hits++;
+      damageMonster(m, dmg, _c, false, w.kb); hits++;
     }
     if (hits) { AU.play('thud', 0.05); shake = Math.max(shake, 0.06); }
   } else if (w.kind === 'hitscan') {
     const base = aimAssist(_d, w.range);
     for (let i = 0; i < w.pellets; i++) {
       const d = base.clone(); d.x += rand(-1, 1) * w.spread; d.y += rand(-1, 1) * w.spread; d.z += rand(-1, 1) * w.spread; d.normalize();
-      hitscan(o, d, dmg, w.range);
+      hitscan(o, d, dmg, w.range, w.kb / w.pellets);
     }
     vmKick = w.id === 'schrot' ? 1.4 : 0.8; flashMuzzle(w.id === 'schrot' ? 1.4 : 1);
     AU.play(w.id === 'schrot' ? 'shotgun' : w.id === 'gewehr' ? 'rifle' : 'pistol', 0.03);
@@ -287,7 +289,7 @@ function doFire(w, lv) {
     muzzleLight.intensity = 1.6; muzzleT = 0.06;
   }
 }
-function hitscan(o, d, dmg, range) {
+function hitscan(o, d, dmg, range, kb) {
   let best = range, bm = null, head = false, what = 0;
   for (const m of monsters) {
     if (m.state === 'dead') continue;
@@ -297,7 +299,7 @@ function hitscan(o, d, dmg, range) {
   for (const s of solids) { if (s.off) continue; const t = rayBox(o, d, s); if (t >= 0 && t < best) { best = t; bm = null; what = 2; } }
   if (d.y < 0) { const t = -o.y / d.y; if (t < best) { best = t; bm = null; what = 2; } }
   const hp = o.clone().addScaledVector(d, best);
-  if (bm) damageMonster(bm, dmg * (head ? 1.6 : 1), hp, head);
+  if (bm) damageMonster(bm, dmg * (head ? 1.6 : 1), hp, head, kb);
   else if (what === 2) { sparks(hp.x, hp.y + 0.02, hp.z, 3, 1, 0.8, 0.5); if (brandOn() && patchCd <= 0) { addPatch(hp.x, hp.z, 1.2, 3); patchCd = 0.25; } }
   tracer(muzzleWorld(_m), hp, tracerCol);
 }
@@ -326,10 +328,10 @@ function useAbility(i) {
 function updateAbilities(dt) { for (let i = 0; i < 4; i++) { if (abCd[i] > 0) abCd[i] = Math.max(0, abCd[i] - dt); if (abOn[i] > 0) abOn[i] = Math.max(0, abOn[i] - dt); } }
 
 // ---------- Waffen in der Hand ----------
-function vmMat(c, sh) { return new T.MeshPhongMaterial({ color: c, emissive: c, emissiveIntensity: 0.28, shininess: sh || 20, specular: 0x333333 }); }
+function vmMat(c, sh, map) { return new T.MeshPhongMaterial({ color: c, map: map || null, bumpMap: map || null, bumpScale: 0.3, emissive: c, emissiveIntensity: 0.28, shininess: sh || 20, specular: 0x333333 }); }
 function buildViewModels() {
   vm = new T.Group(); camera.add(vm);
-  const wood = vmMat(0x8a6038), dwood = vmMat(0x4a3220), steel = vmMat(0xb8bcc4, 70), dsteel = vmMat(0x3a3d42, 40), black = vmMat(0x1c1d20, 30), olive = vmMat(0x4a5236), leather = vmMat(0x5a3a26), str = vmMat(0xd8d0c0), red = vmMat(0x8a1a14);
+  const wood = vmMat(0xd8a070, 20, TX.wood), dwood = vmMat(0x9a7050, 20, TX.wood), steel = vmMat(0xe0e4ec, 80, TX.metal), dsteel = vmMat(0x5a5e66, 50, TX.metal), black = vmMat(0x1c1d20, 30), olive = vmMat(0x6a7650, 20, TX.metal), leather = vmMat(0x5a3a26), str = vmMat(0xd8d0c0), red = vmMat(0x8a1a14);
   const add = (id, base, muzzle, build) => {
     const g = new T.Group(); build(g); g.visible = false; g.userData = { base, muzzle }; vm.add(g); vmModels[id] = g;
     // eigene Materialien je Waffe, damit sie in ihrer Stufen-Farbe leuchten kann

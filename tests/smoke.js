@@ -29,8 +29,19 @@ async function step(name, fn) {
 }
 function check(ok, msg) { if (!ok) throw new Error(msg); }
 
+// Offline-Speicher: Jede Datei, die das Spiel lädt, muss im Service Worker stehen (und existieren)
+function checkOfflineList() {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const files = [...sw.match(/const FILES = \[([\s\S]*?)\];/)[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
+  for (const f of files) if (f !== './' && !fs.existsSync(path.join(ROOT, f))) throw new Error('sw.js nennt eine fehlende Datei: ' + f);
+  for (const s of scripts) if (!files.includes(s)) throw new Error('Datei fehlt im Offline-Speicher (sw.js): ' + s);
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  checkOfflineList(); console.log('ok   Offline-Liste vollständig');
   const srv = await serve(), url = `http://localhost:${srv.address().port}/`;
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
   const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
@@ -122,6 +133,31 @@ function check(ok, msg) { if (!ok) throw new Error(msg); }
       await page.click('#btnContinue'); await until(() => GS === 'play');
       check(await ev(() => SV.diff === 'schwer' && SV.weapons.feuer === 4), 'Spielstand ging verloren');
       await page.screenshot({ path: path.join(OUT, 'weiterspielen.png') });
+    });
+
+    await step('Mara steht an den Unterschlüpfen und spricht', async () => {
+      check(await ev(() => maras.length) === 5, 'Mara fehlt an einem Unterschlupf');
+      await ev(() => { player.pos.set(9.5, 0, SAFE[2].z - 5); });
+      await until(() => $('say').classList.contains('show') && $('sayText').textContent.length > 5);
+    });
+
+    await step('Erfolge werden freigeschaltet und angezeigt', async () => {
+      check(await ev(() => !!(ACH.got.blut && ACH.got.portal)), 'Erfolge „Erstes Blut“ oder „Portal geschlossen“ fehlen');
+      await ev(() => showMenu());
+      await page.click('#btnAchM');
+      check(await ev(() => document.querySelectorAll('#achList .ach').length === ERFOLGE.length && document.querySelectorAll('#achList .ach.got').length >= 2), 'Erfolge-Seite unvollständig');
+      await page.click('#btnAchBack');
+    });
+
+    await step('Endlos-Modus: Welle starten und schaffen', async () => {
+      check(!await ev(() => $('btnEndless').hidden), 'Endlos-Modus ist nach dem Sieg nicht freigeschaltet');
+      await page.click('#btnEndless'); await until(() => GS === 'play' && MODE === 'endlos');
+      await ev(() => { player.pos.z -= 12; EN.breakT = 0.2; });
+      await until(() => EN.active && monsters.length > 0, 30000);
+      await page.screenshot({ path: path.join(OUT, 'endlos.png') });
+      await ev(() => { EN.queue.length = 0; });
+      await until(() => { for (const m of monsters) if (m.state !== 'dead') damageMonster(m, 1e7, null, false); return !EN.active && EN.wave === 1; }, 30000);
+      check(await ev(() => endlessBest() >= 1), 'Endlos-Rekord wurde nicht gespeichert');
     });
   } catch (e) {
     failed = e;

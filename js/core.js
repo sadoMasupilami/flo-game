@@ -59,17 +59,17 @@ const TRADER = [
 
 // Waffen: avail = ab welchem Unterschlupf Mara sie verkauft (Unterschlupf i liegt am Anfang von Gebiet i+1)
 const WEAPONS = [
-  { id: 'holz', name: 'Holzschwert', cat: 'Nahkampf', kind: 'melee', avail: 0, price: 0, up: [40, 90, 160], dmg: 15, rate: 1.8, range: 2.7, arc: 0.5 },
-  { id: 'schleuder', name: 'Steinschleuder', cat: 'Fernkampf', kind: 'proj', avail: 0, price: 60, up: [50, 100, 170], dmg: 13, rate: 2.2, speed: 32, grav: 6, proj: 'stone' },
-  { id: 'eisen', name: 'Eisenschwert', cat: 'Nahkampf', kind: 'melee', avail: 1, price: 180, up: [120, 220, 350], dmg: 29, rate: 1.9, range: 2.9, arc: 0.45 },
-  { id: 'bogen', name: 'Bogen', cat: 'Fernkampf', kind: 'proj', avail: 1, price: 240, up: [150, 260, 400], dmg: 34, rate: 1.4, speed: 48, grav: 4, proj: 'arrow', pierce: 1 },
-  { id: 'axt', name: 'Kampfaxt', cat: 'Nahkampf', kind: 'melee', avail: 2, price: 420, up: [260, 420, 640], dmg: 64, rate: 1.25, range: 3.1, arc: 0.25 },
-  { id: 'armbrust', name: 'Armbrust', cat: 'Fernkampf', kind: 'proj', avail: 2, price: 560, up: [320, 520, 800], dmg: 72, rate: 1.1, speed: 66, grav: 1.5, proj: 'bolt', pierce: 3 },
-  { id: 'pistole', name: 'Pistole', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 850, up: [480, 760, 1100], dmg: 36, rate: 4, spread: 0.012, pellets: 1, range: 70 },
-  { id: 'schrot', name: 'Schrotflinte', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 1200, up: [650, 1000, 1500], dmg: 17, rate: 1.3, spread: 0.085, pellets: 8, range: 24 },
-  { id: 'gewehr', name: 'Sturmgewehr', cat: 'Schusswaffe', kind: 'hitscan', avail: 4, price: 1900, up: [1000, 1500, 2200], dmg: 42, rate: 8, spread: 0.02, pellets: 1, range: 70 },
-  { id: 'rakete', name: 'Raketenwerfer', cat: 'Schwere Waffe', kind: 'rocket', avail: 4, price: 3000, up: [1500, 2300, 3300], dmg: 380, rate: 0.7, speed: 28, splash: 4.5, proj: 'rocket' },
-  { id: 'feuer', name: 'Feuerwerfer', cat: 'Schwere Waffe', kind: 'flame', avail: 5, price: 3800, up: [1800, 2700, 3800], dmg: 320, rate: 20, range: 7.5, cone: 0.88 },
+  { id: 'holz', kb: 3, name: 'Holzschwert', cat: 'Nahkampf', kind: 'melee', avail: 0, price: 0, up: [40, 90, 160], dmg: 15, rate: 1.8, range: 2.7, arc: 0.5 },
+  { id: 'schleuder', kb: 1.5, name: 'Steinschleuder', cat: 'Fernkampf', kind: 'proj', avail: 0, price: 60, up: [50, 100, 170], dmg: 13, rate: 2.2, speed: 32, grav: 6, proj: 'stone' },
+  { id: 'eisen', kb: 3.5, name: 'Eisenschwert', cat: 'Nahkampf', kind: 'melee', avail: 1, price: 180, up: [120, 220, 350], dmg: 29, rate: 1.9, range: 2.9, arc: 0.45 },
+  { id: 'bogen', kb: 2, name: 'Bogen', cat: 'Fernkampf', kind: 'proj', avail: 1, price: 240, up: [150, 260, 400], dmg: 34, rate: 1.4, speed: 48, grav: 4, proj: 'arrow', pierce: 1 },
+  { id: 'axt', kb: 6, name: 'Kampfaxt', cat: 'Nahkampf', kind: 'melee', avail: 2, price: 420, up: [260, 420, 640], dmg: 64, rate: 1.25, range: 3.1, arc: 0.25 },
+  { id: 'armbrust', kb: 3.5, name: 'Armbrust', cat: 'Fernkampf', kind: 'proj', avail: 2, price: 560, up: [320, 520, 800], dmg: 72, rate: 1.1, speed: 66, grav: 1.5, proj: 'bolt', pierce: 3 },
+  { id: 'pistole', kb: 1.2, name: 'Pistole', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 850, up: [480, 760, 1100], dmg: 36, rate: 4, spread: 0.012, pellets: 1, range: 70 },
+  { id: 'schrot', kb: 6, name: 'Schrotflinte', cat: 'Schusswaffe', kind: 'hitscan', avail: 3, price: 1200, up: [650, 1000, 1500], dmg: 17, rate: 1.3, spread: 0.085, pellets: 8, range: 24 },
+  { id: 'gewehr', kb: 0.7, name: 'Sturmgewehr', cat: 'Schusswaffe', kind: 'hitscan', avail: 4, price: 1900, up: [1000, 1500, 2200], dmg: 42, rate: 8, spread: 0.02, pellets: 1, range: 70 },
+  { id: 'rakete', kb: 0, name: 'Raketenwerfer', cat: 'Schwere Waffe', kind: 'rocket', avail: 4, price: 3000, up: [1500, 2300, 3300], dmg: 380, rate: 0.7, speed: 28, splash: 4.5, proj: 'rocket' },
+  { id: 'feuer', kb: 0, name: 'Feuerwerfer', cat: 'Schwere Waffe', kind: 'flame', avail: 5, price: 3800, up: [1800, 2700, 3800], dmg: 320, rate: 20, range: 7.5, cone: 0.88 },
 ];
 const W_BY = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 const DMG_L = [1, 1.4, 1.9, 2.6], RATE_L = [1, 1.08, 1.16, 1.25];
@@ -142,7 +142,7 @@ function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
 function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal' }; }
 let SV = freshSave();
-const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
+const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, nums: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
 function hasSave() { const s = lsGet(SAVE_KEY); return !!(s && s.weapons); }
 function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); return true; } return false; }
@@ -300,7 +300,7 @@ const P_VS = 'attribute vec4 aCol; attribute float aSize; uniform float uScale; 
 const P_FS_N = 'uniform vec3 uFogC; varying vec4 vCol; varying float vFog;\nvoid main(){ vec2 p=gl_PointCoord-0.5; float r=length(p); if(r>0.5) discard; float a=vCol.a*smoothstep(0.5,0.15,r); gl_FragColor=vec4(mix(vCol.rgb,uFogC,vFog),a); }';
 const P_FS_A = 'varying vec4 vCol; varying float vFog;\nvoid main(){ vec2 p=gl_PointCoord-0.5; float r=length(p); if(r>0.5) discard; float a=vCol.a*smoothstep(0.5,0.0,r)*(1.0-vFog); gl_FragColor=vec4(vCol.rgb*a,1.0); }';
 class PSys {
-  constructor(n, add) {
+  constructor(n, add, noFog) {
     this.n = n; this.i = 0; this.dirty = true;
     const f = k => new Float32Array(n * k);
     this.p = f(3); this.c = f(4); this.s = f(1); this.v = f(3); this.l = f(1); this.m = f(1); this.g = f(1); this.s0 = f(1); this.a0 = f(1); this.gr = f(1); this.dr = f(1);
@@ -308,7 +308,7 @@ class PSys {
     this.pa = new T.BufferAttribute(this.p, 3); this.ca = new T.BufferAttribute(this.c, 4); this.sa = new T.BufferAttribute(this.s, 1);
     [this.pa, this.ca, this.sa].forEach(a => a.setUsage(T.DynamicDrawUsage));
     geo.setAttribute('position', this.pa); geo.setAttribute('aCol', this.ca); geo.setAttribute('aSize', this.sa);
-    this.mat = new T.ShaderMaterial({ uniforms: { uScale: PU.uScale, uFogD: PU.uFogD, uFogC: PU.uFogC }, vertexShader: P_VS, fragmentShader: add ? P_FS_A : P_FS_N, transparent: true, depthWrite: false, blending: add ? T.AdditiveBlending : T.NormalBlending });
+    this.mat = new T.ShaderMaterial({ uniforms: { uScale: PU.uScale, uFogD: noFog ? { value: 0 } : PU.uFogD, uFogC: PU.uFogC }, vertexShader: P_VS, fragmentShader: add ? P_FS_A : P_FS_N, transparent: true, depthWrite: false, blending: add ? T.AdditiveBlending : T.NormalBlending });
     this.pts = new T.Points(geo, this.mat); this.pts.frustumCulled = false; scene.add(this.pts);
   }
   emit(x, y, z, vx, vy, vz, life, r, g, b, size, grav, grow, drag, a) {

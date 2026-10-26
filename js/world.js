@@ -5,6 +5,7 @@ const flickers = [];    // Lampen, Fernseher, Blaulicht
 const fires = [];       // brennende Autos usw.
 const swings = [];      // leere Schaukeln
 const barriers = [];
+const maras = [];      // Mara, die Händlerin, an den Unterschlüpfen
 let portal = null, moon = null;
 
 function solid(x, z, w, d, h, y0) {
@@ -16,11 +17,12 @@ function sm(geo, m, x, y, z, sx, sy, sz, rx, ry, rz, parent) {
   o.scale.set(sx == null ? 1 : sx, sy == null ? 1 : sy, sz == null ? 1 : sz); o.rotation.set(rx || 0, ry || 0, rz || 0);
   (parent || scene).add(o);
   if (!parent) { o.matrixAutoUpdate = false; o.updateMatrix(); }
+  if (geo === G.plane && rx === -Math.PI / 2) o.receiveShadow = true;
   return o;
 }
 function bx(x, y0, z, w, h, d, m, isSolid, ry) {
   const o = sm(G.box, m, x, y0 + h / 2, z, w, h, d, 0, ry || 0, 0);
-  if (isSolid) { const c = Math.abs(Math.cos(ry || 0)), s = Math.abs(Math.sin(ry || 0)); solid(x, z, w * c + d * s, w * s + d * c, h, y0); }
+  if (isSolid) { o.castShadow = true; o.receiveShadow = true; const c = Math.abs(Math.cos(ry || 0)), s = Math.abs(Math.sin(ry || 0)); solid(x, z, w * c + d * s, w * s + d * c, h, y0); }
   return o;
 }
 // Viele gleiche Objekte in einem Draw-Call; Bounding-Sphere selbst setzen, damit das Culling stimmt
@@ -34,6 +36,7 @@ function inst(geo, m, list) {
     x0 = Math.min(x0, t[0] - e); x1 = Math.max(x1, t[0] + e); y0 = Math.min(y0, t[1] - e); y1 = Math.max(y1, t[1] + e); z0 = Math.min(z0, t[2] - e); z1 = Math.max(z1, t[2] + e);
   });
   g.boundingSphere = new T.Sphere(new T.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2);
+  im.castShadow = true; im.receiveShadow = true;
   im.instanceMatrix.needsUpdate = true; scene.add(im); return im;
 }
 function glowDisc(x, z, r, color, op) {
@@ -57,21 +60,34 @@ function initMats() {
   MATS.pole = mat(0x2c2d30, { sh: 30 });
   MATS.black = mat(0x0f0f11, { sh: 20 });
   MATS.glass = mat(0x0c1016, { sh: 80 });
-  MATS.trunk = mat(0x2a1f17);
-  MATS.leaf = mat(0x13211a);
-  MATS.rock = mat(0x3b3c3a, { flat: true });
-  MATS.hay = mat(0x7a6531);
-  MATS.stone = mat(0x55534f);
+  MATS.trunk = tmat('bark', 0x9a8a7a, 1, 3);
+  MATS.leaf = tmat('leaves', 0xa8b8a8, 2, 2);
+  MATS.rock = tmat('rock', 0xa09c94, 1, 1, { bump: 0.5 });
+  MATS.hay = tmat('hay', 0xb0a080, 2, 1);
+  MATS.stone = tmat('rock', 0xb0aca4, 2, 1);
   MATS.eyeO = mat(0xff9a2a, { basic: true, fog: false });
 }
-function ground(a, col, pathCol, pathW) {
-  const zc = ZS(a) - AREA_LEN / 2;
-  const gm = new T.MeshPhongMaterial({ color: col, map: repTex(TEX.noise, 18, 16), shininess: 2, specular: 0 });
-  sm(G.plane, gm, 0, 0, zc, 140, AREA_LEN + 0.6, 1, -Math.PI / 2);
-  if (pathCol) {
-    const pm = new T.MeshPhongMaterial({ color: pathCol, map: repTex(TEX.noise, 2, 30), shininess: 4, specular: 0x050505, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    sm(G.plane, pm, 0, 0.012, zc, pathW, AREA_LEN + 0.6, 1, -Math.PI / 2);
+// Boden eines Gebiets mit gemalter Textur, dazu ein Weg in der Mitte
+function ground(a, key, tint, pathKey, pathTint, pathW) {
+  const zc = ZS(a) - AREA_LEN / 2, tile = key === 'cobble' ? 4.8 : 6;
+  sm(G.plane, tmat(key, tint, 140 / tile, AREA_LEN / tile, { bump: key === 'cobble' ? 0.6 : 0.25 }), 0, 0, zc, 140, AREA_LEN + 0.6, 1, -Math.PI / 2);
+  if (pathKey) {
+    const pt = pathKey === 'cobble' ? 4.8 : 4;
+    sm(G.plane, tmat(pathKey, pathTint, pathW / pt, AREA_LEN / pt, { bump: 0.3, off: -1, sh: pathKey === 'asphalt' ? 10 : 0 }), 0, 0.012, zc, pathW, AREA_LEN + 0.6, 1, -Math.PI / 2);
   }
+}
+// Grasbüschel: zwei gekreuzte Flächen, viele Exemplare in einem Draw-Call
+function tufts(list) {
+  if (!G.tuft) {
+    G.tuft = mergeParts([[G.plane, 0, 0.5, 0, 1, 1, 1], [G.plane, 0, 0.5, 0, 1, 1, 1, 0, Math.PI / 2, 0]]);
+  }
+  const m = new T.MeshPhongMaterial({ color: 0xb0b098, map: TX.tuft, alphaTest: 0.45, side: T.DoubleSide, shininess: 2, specular: 0 });
+  inst(G.tuft, m, list.map(([x, z, s]) => [x, 0, z, 0.8 * s, 0.5 * s, 0.8 * s, R() * 3]));
+}
+function tuftField(z0, n, xMin, xMax, avoidPath) {
+  const l = [];
+  for (let i = 0; i < n; i++) { const x = (R() < 0.5 ? -1 : 1) * rr(xMin, xMax); if (Math.abs(x) < avoidPath) continue; l.push([x, rr(z0 - 2, z0 - AREA_LEN + 2), rr(0.7, 1.4)]); }
+  tufts(l);
 }
 function fenceLine(x, zA, zB, m, h, step) {
   h = h || 1.2; step = step || 2.6;
@@ -90,8 +106,8 @@ function forest(list) {
 // face: -1 = Vorderseite zeigt nach -x, +1 = nach +x
 function house(x, z, w, h, d, face, wallC, roofC, opt) {
   opt = opt || {};
-  bx(x, 0, z, w, h, d, mat(wallC), false);
-  sm(G.prism, mat(roofC), x, h, z, w + 0.8, h * 0.55, d + 0.6);
+  bx(x, 0, z, w, h, d, tmat('plaster', new T.Color(wallC).multiplyScalar(1.6).getHex(), 2, 1.5, { bump: 0.3 }), false);
+  sm(G.prism, tmat('roof', new T.Color(roofC).multiplyScalar(2.6).getHex(), 3, 2, { bump: 0.4 }), x, h, z, w + 0.8, h * 0.55, d + 0.6);
   const fx = x + face * (w / 2 + 0.03);
   bx(fx, 0, z + d * 0.18, 0.08, 2.1, 1.1, MATS.door, false);
   const wins = [[z - d * 0.25, h * 0.55], [z + d * 0.38, h * 0.55]];
@@ -127,7 +143,9 @@ function lamp(x, z, h, side, mode) {
   const m = new T.MeshPhongMaterial({ color: 0x332211, emissive: 0xffd08a, emissiveIntensity: mode === 2 ? 0 : 1 });
   sm(G.box, m, x - side * 0.95, h - 0.12, z, 0.5, 0.16, 0.3);
   const gm = mode === 2 ? null : glowDisc(x - side * 0.95, z, 4.2, 0xffc070, 0.22);
-  flickers.push({ m, mode, base: 1, glow: gm, gb: 0.22 });
+  let cone = null; // Lichtkegel, als würde Nebel das Licht sichtbar machen
+  if (mode !== 2) { cone = new T.MeshBasicMaterial({ map: TX.beam, color: 0xffc070, transparent: true, opacity: 0.15, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }); sm(G.beam, cone, x - side * 0.95, (h - 0.2) / 2, z, 1, h - 0.2, 1); }
+  flickers.push({ m, mode, base: 1, glow: gm, gb: 0.22, cone });
   if (Math.abs(x) < HALF_W) solid(x, z, 0.3, 0.3, h);
 }
 function deadTree(x, z, s) {
@@ -141,7 +159,8 @@ function deadTree(x, z, s) {
 // ---------- Gebiet 1: Der Hof ----------
 function buildHof() {
   const z0 = ZS(0);
-  ground(0, 0x26331c, 0x3a2e22, 6);
+  ground(0, 'grass', 0x8a8a80, 'dirt', 0x8a8070, 6);
+  tuftField(z0, 700, 1, 19, 3.4);
   const fenceM = mat(0x3b2c1f);
   fenceLine(-19.7, z0 + 5, z0 - AREA_LEN, fenceM); fenceLine(19.7, z0 + 5, z0 - AREA_LEN, fenceM);
   bx(0, 0, 5.8, 40, 1.3, 0.25, fenceM, false);
@@ -149,8 +168,8 @@ function buildHof() {
   for (let x = -21; x > -44; x -= 1.5) for (let z = z0 + 4; z > z0 - AREA_LEN; z -= 1.4) { if (R() < 0.12) continue; const h = rr(1.6, 2.5); corn.push([x + rr(-0.3, 0.3), h / 2, z + rr(-0.3, 0.3), 0.14, h, 0.14, rr(0, 3)]); }
   inst(G.box, mat(0x3a3a1c), corn);
   // Scheune, Wohnhaus, Silo rechts
-  bx(31, 0, z0 - 46, 12, 7, 16, mat(0x45170f), true);
-  sm(G.prism, mat(0x231210), 31, 7, z0 - 46, 13, 4.2, 17);
+  bx(31, 0, z0 - 46, 12, 7, 16, tmat('wood', 0xb05040, 4, 2), true);
+  sm(G.prism, tmat('roof', 0x8a6a60, 4, 3), 31, 7, z0 - 46, 13, 4.2, 17);
   bx(24.95, 0, z0 - 46, 0.12, 5.2, 5, mat(0x220c08));
   sm(G.box, mat(0x8a8070), 24.88, 2.6, z0 - 46, 0.06, 6.6, 0.22, 0.8, 0, 0); sm(G.box, mat(0x8a8070), 24.88, 2.6, z0 - 46, 0.06, 6.6, 0.22, -0.8, 0, 0);
   bx(24.95, 5.4, z0 - 46, 0.08, 1.0, 1.2, MATS.winLit);
@@ -182,7 +201,8 @@ function buildHof() {
 // ---------- Gebiet 2: Finsterwald ----------
 function buildWald() {
   const z0 = ZS(1);
-  ground(1, 0x1d2819, 0x33291f, 5);
+  ground(1, 'forest', 0x8a8a80, 'dirt', 0x6a6050, 5);
+  tuftField(z0, 450, 1, 19, 3);
   const list = [];
   for (let i = 0; i < 330; i++) { const side = R() < 0.5 ? -1 : 1; list.push([side * rr(19.6, 48), rr(z0 + 2, z0 - AREA_LEN - 2), rr(0.8, 1.5), R() < 0.12]); }
   for (let i = 0; i < 18; i++) for (let t = 0; t < 12; t++) {
@@ -211,7 +231,7 @@ function buildWald() {
 // ---------- Gebiet 3: Das Dorf ----------
 function buildDorf() {
   const z0 = ZS(2);
-  ground(2, 0x2a2a30, 0x232229, 10);
+  ground(2, 'cobble', 0x9a9a9a, 'cobble', 0x7a7a7a, 10);
   const walls = [0x4a4038, 0x3e3b45, 0x524537, 0x45443d, 0x3c4140], roofs = [0x3a1b17, 0x2a2522, 0x332018];
   for (let i = 0; i < 8; i++) {
     const z = z0 - 12 - i * 15.5;
@@ -221,7 +241,7 @@ function buildDorf() {
   fenceLine(-19.7, z0, z0 - AREA_LEN, mat(0x5e5b55), 0.9, 0.7); fenceLine(19.7, z0, z0 - AREA_LEN, mat(0x5e5b55), 0.9, 0.7);
   for (let k = 0; k < 6; k++) { const side = k % 2 ? 1 : -1; lamp(side * 16.9, z0 - 16 - k * 20, 4.6, side, k === 2 ? 1 : (k === 4 ? 2 : 0)); }
   // Kirche mit rotem Fenster
-  { const x = -38, z = z0 - 66, st = mat(0x3a3a3e);
+  { const x = -38, z = z0 - 66, st = tmat('plaster', 0x6a6a72, 2, 3, { bump: 0.3 });
     bx(x, 0, z, 11, 9, 22, st); sm(G.prism, mat(0x221d1d), x, 9, z, 12, 6, 23);
     bx(x, 0, z + 13.5, 5, 20, 5, st); sm(G.cone, mat(0x221d1d), x, 24, z + 13.5, 5, 8, 5);
     sm(G.disc, mat(0xd8d2b8, { basic: true }), x + 2.53, 16, z + 13.5, 2.4, 1, 2.4, 0, 0, Math.PI / 2);
@@ -237,8 +257,8 @@ function buildDorf() {
 // ---------- Gebiet 4: Die Autobahn ----------
 function buildAutobahn() {
   const z0 = ZS(3), zc = z0 - AREA_LEN / 2;
-  ground(3, 0x1a2016, null);
-  const am = new T.MeshPhongMaterial({ color: 0x26262a, map: repTex(TEX.noise, 6, 20), shininess: 10, specular: 0x0a0a0a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  ground(3, 'grass', 0x6a6a60, null);
+  const am = tmat('asphalt', 0x9a9a9a, 6, 22, { bump: 0.3, sh: 10, off: -1 });
   sm(G.plane, am, 0, 0.012, zc, 37.5, AREA_LEN + 0.6, 1, -Math.PI / 2);
   const dash = [], line = mat(0x8a8a80);
   for (const x of [-9, 0, 9]) for (let z = z0 - 2; z > z0 - AREA_LEN; z -= 9) dash.push([x, 0.03, z, 0.16, 0.02, 3]);
@@ -269,8 +289,9 @@ function buildAutobahn() {
 // ---------- Gebiet 5: Die Vorstadt ----------
 function buildVorstadt() {
   const z0 = ZS(4), zc = z0 - AREA_LEN / 2;
-  ground(4, 0x1f2d1b, 0x27272c, 11);
-  const sw = new T.MeshPhongMaterial({ color: 0x2a2a2e, map: repTex(TEX.noise, 1, 30), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  ground(4, 'lawn', 0x8a8a80, 'asphalt', 0x8a8a8a, 11);
+  const sw = tmat('concrete', 0x7a7a78, 1, 40, { off: -2 });
+  tuftField(z0, 300, 8.5, 19, 8);
   sm(G.plane, sw, -6.5, 0.02, zc, 2, AREA_LEN, 1, -Math.PI / 2); sm(G.plane, sw, 6.5, 0.02, zc, 2, AREA_LEN, 1, -Math.PI / 2);
   const dash = []; for (let z = z0 - 2; z > z0 - AREA_LEN; z -= 7) dash.push([0, 0.03, z, 0.15, 0.02, 2.5]); inst(G.box, mat(0x8a8670), dash);
   const hedge = mat(0x1a2a17); sm(G.box, hedge, -19.8, 0.75, zc, 1.2, 1.5, AREA_LEN); sm(G.box, hedge, 19.8, 0.75, zc, 1.2, 1.5, AREA_LEN);
@@ -304,8 +325,8 @@ function tower(x, z, w, h, d, mats) {
 }
 function buildStadt() {
   const z0 = ZS(5);
-  ground(5, 0x232228, null);
-  const am = new T.MeshPhongMaterial({ color: 0x27262b, map: repTex(TEX.noise, 6, 24), shininess: 12, specular: 0x0a0a0a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  ground(5, 'asphalt', 0x8a8a8a, null);
+  const am = tmat('asphalt', 0x9a9a9a, 6, 28, { bump: 0.3, sh: 12, off: -1 });
   sm(G.plane, am, 0, 0.012, z0 - 80, 33, 170, 1, -Math.PI / 2);
   const dash = []; for (const x of [-6, 6]) for (let z = z0 - 2; z > -785; z -= 8) dash.push([x, 0.03, z, 0.15, 0.02, 3]); inst(G.box, mat(0x8a8670), dash);
   const mats = [[2, 4], [2, 6], [3, 6], [2, 8]].map(([u, v]) => { const t = repTex(TEX.win, u, v); return new T.MeshPhongMaterial({ color: 0x15161b, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.85, shininess: 20, specular: 0x111111 }); });
@@ -314,7 +335,7 @@ function buildStadt() {
   // Bus, Betonsperren, Autos
   bx(-10, 0.3, z0 - 32, 2.6, 3, 11, mat(0xc8a020, { sh: 20 }), true, 0.2);
   fires.push({ x: -10, y: 3.3, z: z0 - 32, r: 1.4, rate: 40 }); glowDisc(-10, z0 - 32, 7, 0xff7a2a, 0.3);
-  const jm = mat(0x6a6864);
+  const jm = tmat('concrete', 0xb0aea8, 1, 1, { bump: 0.3 });
   [[5, -20, 0.2], [-2, -46, -0.3], [9, -58, 1.4], [-12, -70, 0.1], [4, -84, 0.9], [-6, -96, -0.2], [11, -100, 0.4], [-8, -76 - 50, 0.3], [6, -138, -0.5]].forEach(([x, dz, ry]) => bx(x, 0, z0 + dz, 0.6, 0.95, 2.6, jm, true, ry));
   [[12, -40, 0.4, 1], [-13, -54, -0.3, 0], [3, -66, 2.0, 0], [-4, -110, 0.7, 1], [13, -118, 2.9, 0]].forEach(([x, dz, ry, f], i) => car(x, z0 + dz, ry, CAR_COLS[(i + 4) % CAR_COLS.length], { dead: true, fire: !!f }));
   // violette Auswüchse rund ums Portal
@@ -338,7 +359,7 @@ function buildPortal() {
 // ---------- Unterschlüpfe & Barrieren ----------
 function buildShelter(i) {
   const s = SAFE[i], x = 15.6, z = s.z;
-  bx(x, 0, z, 4.8, 3.4, 6, mat(SHELTERS[i].color), true);
+  bx(x, 0, z, 4.8, 3.4, 6, tmat('concrete', new T.Color(SHELTERS[i].color).multiplyScalar(1.5).getHex(), 1, 1, { bump: 0.3 }), true);
   bx(x, 3.4, z, 5.4, 0.3, 6.6, mat(0x1d1c1c));
   bx(13.15, 0, z, 0.1, 2.3, 1.4, mat(0x1a0f05, { e: 0xf0a040, ei: 0.9 }));
   bx(13.1, 2.5, z, 0.25, 0.14, 0.5, mat(0x332211, { e: 0xffd9a0, ei: 1 }));
@@ -346,6 +367,33 @@ function buildShelter(i) {
   sm(G.plane, new T.MeshPhongMaterial({ map: st, emissive: 0xffffff, emissiveMap: st, emissiveIntensity: 0.55 }), 13.14, 2.95, z, 3.6, 0.9, 1, 0, -Math.PI / 2, 0);
   sm(G.ring, mat(0xf0ae4e, { basic: true, add: true, op: 0.55 }), s.x, 0.05, z, s.r * 2, 1, s.r * 2);
   glowDisc(s.x, z, s.r + 2, 0xf0a040, 0.25);
+  if (i === 0) { // Opas Werkbank
+    bx(12.7, 0, z - 2.4, 0.8, 0.9, 1.6, mat(0x5a3d24), true);
+    bx(12.7, 0.9, z - 2.7, 0.35, 0.25, 0.6, mat(0x8a1a14, { sh: 40 }));
+  } else buildMara(12.5, z - 2.4, i);
+}
+function buildMara(x, z, idx) {
+  const g = new T.Group(); g.position.set(x, 0, z); scene.add(g);
+  const coat = mat(0x5a3a26, { sh: 14 }), pants = mat(0x23252a), boots = mat(0x1a1410), skin = mat(0xd9a988, { sh: 15 }), hair = mat(0x8a2e18, { sh: 30 });
+  for (const sx of [-0.1, 0.1]) { part(g, G.box, pants, sx, 0.45, 0, 0.13, 0.8, 0.15); part(g, G.box, boots, sx, 0.07, 0.03, 0.15, 0.14, 0.24); }
+  part(g, G.cyl, coat, 0, 0.82, 0, 0.62, 0.75, 0.5);
+  const torso = part(g, G.box, coat, 0, 1.28, 0, 0.42, 0.5, 0.26);
+  part(g, G.box, mat(0x9a1f1f), 0, 1.5, 0.02, 0.36, 0.1, 0.3);
+  const head = new T.Group(); head.position.set(0, 1.64, 0); g.add(head);
+  part(head, G.sph, skin, 0, 0, 0, 0.21, 0.24, 0.22);
+  part(head, G.sph, hair, 0, 0.04, -0.035, 0.23, 0.22, 0.23);
+  part(head, G.cyl, hair, 0, -0.08, -0.15, 0.08, 0.3, 0.08).rotation.x = 0.5;
+  part(head, G.sph, mat(0x2a3040), 0, 0.09, 0, 0.24, 0.14, 0.24);
+  const eye = mat(0x101010, { basic: true }); part(head, G.sphLo, eye, -0.05, 0.01, 0.105, 0.025, 0.025, 0.02); part(head, G.sphLo, eye, 0.05, 0.01, 0.105, 0.025, 0.025, 0.02);
+  part(g, G.box, mat(0x5a4128), 0, 1.2, -0.22, 0.36, 0.5, 0.2);
+  part(g, G.cyl, mat(0x6a5a3a), 0, 1.5, -0.22, 0.14, 0.42, 0.14).rotation.z = Math.PI / 2;
+  const armL = pivot(g, -0.27, 1.48, 0), armR = pivot(g, 0.27, 1.48, 0);
+  for (const a of [armL, armR]) { part(a, G.box, coat, 0, -0.27, 0, 0.11, 0.55, 0.12); part(a, G.sph, skin, 0, -0.57, 0, 0.09, 0.09, 0.09); }
+  part(armL, G.box, mat(0x3a2a10, { e: 0xffb050, ei: 1 }), 0, -0.72, 0.03, 0.12, 0.16, 0.12); part(armL, G.box, MATS.pole, 0, -0.62, 0.03, 0.02, 0.06, 0.02);
+  armL.rotation.x = -0.25;
+  glowDisc(x, z, 2.2, 0xffb050, 0.3);
+  solid(x, z, 0.6, 0.6, 1.8);
+  maras.push({ g, head, armL, armR, torso, x, z, idx, greeted: false, waveT: 0, t: R() * 6 });
 }
 function buildBarrier(a) {
   const z = ZS(a) - 118;
@@ -364,10 +412,11 @@ function setBarrier(a, open, instant) {
 }
 
 function buildWorld() {
-  initMats();
+  buildTextures(); initMats(); G.beam = new T.CylinderGeometry(0.15, 2.4, 1, 16, 1, true);
   buildHof(); buildWald(); buildDorf(); buildAutobahn(); buildVorstadt(); buildStadt();
   for (let i = 0; i < 6; i++) buildShelter(i);
   for (let a = 0; a < 5; a++) buildBarrier(a);
+  buildSky(); buildMist();
   moon = new T.Mesh(G.sph, new T.MeshBasicMaterial({ color: 0xcfd6e0, fog: false })); moon.scale.setScalar(5); scene.add(moon);
   const mg = new T.Mesh(G.plane, new T.MeshBasicMaterial({ map: TEX.glow, color: 0x6a7a9a, transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
   mg.scale.set(30, 30, 1); moon.add(mg); mg.position.z = 0.6; mg.scale.set(4, 4, 1);
@@ -376,7 +425,7 @@ function buildWorld() {
 // Lebendige Welt: flackernde Lampen, Feuer, Schaukeln, Portal
 function updateWorld(dt, t, near) {
   for (const f of flickers) {
-    if (f.mode === 1) { const on = Math.random() < 0.85 ? 1 : 0.1; f.m.emissiveIntensity = on; if (f.glow) f.glow.opacity = f.gb * on; }
+    if (f.mode === 1) { const on = Math.random() < 0.85 ? 1 : 0.1; f.m.emissiveIntensity = on; if (f.glow) f.glow.opacity = f.gb * on; if (f.cone) f.cone.opacity = 0.15 * on; }
     else if (f.mode === 3) f.m.emissiveIntensity = 0.35 + Math.random() * 0.5;
     else if (f.mode === 4) f.m.color.setHex(Math.sin(t * 9) > 0 ? 0xff2030 : 0x200406);
     else if (f.mode === 5) f.m.color.setHex(Math.sin(t * 9) <= 0 ? 0x2050ff : 0x040820);

@@ -43,80 +43,7 @@ function blockedAt(x, z, r) {
 // ---------- Monster-Modelle ----------
 function part(parent, geo, m, x, y, z, sx, sy, sz) { const o = new T.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); parent.add(o); return o; }
 function pivot(parent, x, y, z) { const p = new T.Group(); p.position.set(x, y, z); parent.add(p); return p; }
-function buildMonster(type) {
-  const def = MT[type], g = new T.Group(); g.rotation.order = 'YXZ';
-  const skin = new T.MeshPhongMaterial({ color: def.skin, shininess: 18, specular: 0x161616, emissive: 0 });
-  const dark = mat(0x1a1514, { sh: 10 }), mouth = mat(0x050202, { basic: true });
-  const eye = mat(def.eye, { basic: true, fog: false });
-  const P = { eyes: [] };
-  const eyes = (pts, s) => pts.forEach(([x, y, z]) => P.eyes.push(part(g, G.sphLo, eye, x, y, z, s * 1.4, s * 1.4, s)));
-  if (type === 'ghul') {
-    const lL = pivot(g, -0.14, 0.85, 0), lR = pivot(g, 0.14, 0.85, 0);
-    part(lL, G.box, dark, 0, -0.42, 0, 0.17, 0.85, 0.2); part(lR, G.box, dark, 0, -0.42, 0, 0.17, 0.85, 0.2);
-    part(g, G.box, skin, 0, 1.2, 0.05, 0.55, 0.75, 0.32).rotation.x = 0.35;
-    part(g, G.sph, skin, 0, 1.68, 0.2, 0.34, 0.4, 0.36);
-    part(g, G.box, mouth, 0, 1.56, 0.37, 0.2, 0.07, 0.04);
-    eyes([[-0.08, 1.72, 0.36], [0.08, 1.72, 0.36]], 0.06);
-    const aL = pivot(g, -0.34, 1.48, 0.1), aR = pivot(g, 0.34, 1.48, 0.1);
-    part(aL, G.box, skin, 0, -0.38, 0, 0.11, 0.76, 0.11); part(aR, G.box, skin, 0, -0.38, 0, 0.11, 0.76, 0.11);
-    P.legs = [lL, lR]; P.arms = [aL, aR]; P.armBase = -1.25;
-  } else if (type === 'kriecher') {
-    part(g, G.sph, skin, 0, 0.42, 0, 0.75, 0.45, 1.05);
-    part(g, G.sph, skin, 0, 0.5, 0.55, 0.42, 0.38, 0.42);
-    part(g, G.box, mouth, 0, 0.42, 0.75, 0.24, 0.08, 0.04);
-    eyes([[-0.08, 0.6, 0.73], [0.08, 0.6, 0.73], [-0.16, 0.56, 0.68], [0.16, 0.56, 0.68]], 0.05);
-    P.legs6 = [];
-    for (const side of [-1, 1]) for (const k of [-0.3, 0, 0.3]) { const p = pivot(g, side * 0.3, 0.45, k); p.rotation.z = -side * 0.6; part(p, G.box, dark, side * 0.34, -0.06, 0, 0.62, 0.06, 0.06); P.legs6.push(p); }
-  } else if (type === 'spucker') {
-    const lL = pivot(g, -0.2, 0.55, 0), lR = pivot(g, 0.2, 0.55, 0);
-    part(lL, G.box, dark, 0, -0.27, 0, 0.18, 0.55, 0.2); part(lR, G.box, dark, 0, -0.27, 0, 0.18, 0.55, 0.2);
-    P.body = part(g, G.sph, skin, 0, 1.0, 0, 0.95, 1.0, 0.85); P.bodyS = P.body.scale.clone();
-    const sac = mat(0x5aff3a, { basic: true });
-    part(g, G.sph, sac, 0.35, 1.25, -0.25, 0.3, 0.3, 0.3); part(g, G.sph, sac, -0.3, 1.05, -0.3, 0.26, 0.26, 0.26); part(g, G.sph, sac, 0, 1.42, -0.3, 0.22, 0.22, 0.22);
-    part(g, G.sph, skin, 0, 1.55, 0.22, 0.32, 0.32, 0.32);
-    part(g, G.sph, sac, 0, 1.48, 0.38, 0.14, 0.12, 0.08);
-    eyes([[-0.08, 1.63, 0.36], [0.08, 1.63, 0.36]], 0.05);
-    const aL = pivot(g, -0.45, 1.2, 0.1), aR = pivot(g, 0.45, 1.2, 0.1);
-    part(aL, G.box, skin, 0, -0.22, 0, 0.1, 0.45, 0.1); part(aR, G.box, skin, 0, -0.22, 0, 0.1, 0.45, 0.1);
-    P.legs = [lL, lR]; P.arms = [aL, aR]; P.armBase = -0.6;
-  } else if (type === 'koloss') {
-    const lL = pivot(g, -0.38, 1.2, 0), lR = pivot(g, 0.38, 1.2, 0);
-    part(lL, G.box, dark, 0, -0.6, 0, 0.45, 1.2, 0.5); part(lR, G.box, dark, 0, -0.6, 0, 0.45, 1.2, 0.5);
-    part(g, G.box, skin, 0, 1.95, 0.05, 1.4, 1.25, 0.9).rotation.x = 0.3;
-    part(g, G.box, dark, 0, 1.75, 0.5, 1.0, 0.5, 0.2);
-    part(g, G.sph, skin, 0, 2.72, 0.45, 0.5, 0.48, 0.5);
-    part(g, G.box, mouth, 0, 2.6, 0.7, 0.26, 0.08, 0.04);
-    eyes([[-0.1, 2.77, 0.68], [0.1, 2.77, 0.68]], 0.07);
-    for (const [x, y, z] of [[0, 2.55, -0.35], [-0.42, 2.35, -0.3], [0.42, 2.35, -0.3]]) part(g, G.cone, dark, x, y, z, 0.22, 0.6, 0.22).rotation.x = -0.8;
-    const aL = pivot(g, -0.92, 2.45, 0.1), aR = pivot(g, 0.92, 2.45, 0.1);
-    for (const a of [aL, aR]) { part(a, G.box, skin, 0, -0.72, 0, 0.42, 1.45, 0.42); part(a, G.box, dark, 0, -1.5, 0, 0.58, 0.5, 0.58); }
-    P.legs = [lL, lR]; P.arms = [aL, aR]; P.armBase = -0.35;
-  } else if (type === 'schreier') {
-    const lL = pivot(g, -0.12, 0.95, 0), lR = pivot(g, 0.12, 0.95, 0);
-    part(lL, G.box, dark, 0, -0.47, 0, 0.1, 0.95, 0.1); part(lR, G.box, dark, 0, -0.47, 0, 0.1, 0.95, 0.1);
-    part(g, G.box, skin, 0, 1.3, 0.04, 0.34, 0.7, 0.2).rotation.x = 0.25;
-    part(g, G.sph, skin, 0, 1.82, 0.12, 0.3, 0.46, 0.3);
-    part(g, G.sph, mouth, 0, 1.74, 0.26, 0.14, 0.2, 0.05);
-    eyes([[-0.07, 1.9, 0.25], [0.07, 1.9, 0.25]], 0.04);
-    const aL = pivot(g, -0.22, 1.6, 0.05), aR = pivot(g, 0.22, 1.6, 0.05);
-    part(aL, G.box, skin, 0, -0.52, 0, 0.07, 1.05, 0.07); part(aR, G.box, skin, 0, -0.52, 0, 0.07, 1.05, 0.07);
-    P.legs = [lL, lR]; P.arms = [aL, aR]; P.armBase = -0.5;
-  } else if (type === 'koenigin') {
-    const glow = mat(0xd25cff, { basic: true, fog: false });
-    part(g, G.sph, skin, 0, 1.9, -0.8, 2.4, 1.7, 2.8);
-    P.legs6 = [];
-    for (const side of [-1, 1]) for (const k of [-1.4, -0.4, 0.6]) { const p = pivot(g, side * 1.1, 1.8, k); p.rotation.z = -side * 0.55; part(p, G.box, dark, side * 1.3, 0, 0, 2.6, 0.18, 0.18); P.legs6.push(p); }
-    part(g, G.box, skin, 0, 3.9, 0.7, 1.3, 2.2, 0.9);
-    P.core = part(g, G.sph, glow, 0, 3.9, 1.18, 0.45, 0.45, 0.3);
-    part(g, G.sph, skin, 0, 5.4, 0.85, 0.95, 0.95, 0.95);
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; const c = part(g, G.cone, glow, Math.cos(a) * 0.55, 6.05, 0.85 + Math.sin(a) * 0.4, 0.14, 0.7, 0.14); c.rotation.z = -Math.cos(a) * 0.5; c.rotation.x = Math.sin(a) * 0.4; }
-    eyes([[-0.25, 5.5, 1.3], [0.25, 5.5, 1.3], [-0.12, 5.7, 1.32], [0.12, 5.7, 1.32], [-0.35, 5.3, 1.22], [0.35, 5.3, 1.22]], 0.09);
-    P.arms = [];
-    for (const [x, y] of [[-0.8, 4.7], [0.8, 4.7], [-0.75, 4.1], [0.75, 4.1]]) { const a = pivot(g, x, y, 0.8); part(a, G.box, skin, 0, -1.0, 0, 0.22, 2.0, 0.22); part(a, G.cone, dark, 0, -2.15, 0, 0.18, 0.4, 0.18).rotation.x = Math.PI; P.arms.push(a); }
-    P.armBase = -0.6;
-  }
-  return { g, P, skin };
-}
+// buildMonster steht in models.js
 
 function spawnMonster(type, x, z, opt) {
   opt = opt || {};
@@ -129,21 +56,21 @@ function spawnMonster(type, x, z, opt) {
   if (elite) { const ring = new T.Mesh(G.ring, mat(0xff2030, { basic: true, add: true, op: 0.7 })); ring.scale.setScalar(2.2); ring.position.y = 0.05; g.add(ring); P.aura = ring; skin.emissive.setHex(0x220000); }
   const m = {
     type, def, g, P, skin, boss, elite, sc, a,
-    hp: def.hp * HPM[a] * (mini ? mini.hp : elite ? 6 : 1) * diff().hp, dmg: def.dmg * DMGM[a] * (mini ? 1.3 : elite ? 1.4 : 1) * diff().dmg,
+    hp: def.hp * HPM[a] * (mini ? mini.hp : elite ? 6 : 1) * diff().hp * (opt.mult ? opt.mult.hp : 1), dmg: def.dmg * DMGM[a] * (mini ? 1.3 : elite ? 1.4 : 1) * diff().dmg * (opt.mult ? opt.mult.dmg : 1),
     spd: def.spd * (1 + a * 0.04) * (mini ? 0.8 : elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
     cd: rand(0.3, 1), state: 'rise', t: 0, phase: rand(0, TAU), burn: 0, burnDps: 0, flash: 0, wind: 0, windMax: 0.4, strike: 0,
     gold: Math.round(def.gold * GOLDM[a] * (mini ? 10 : elite ? 6 : 1) * GOLD * diff().gold), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
     wa: opt.wa == null ? -1 : opt.wa, wj: opt.wj == null ? -1 : opt.wj, hits: HIT[type], blocked: null, target: null,
-    atkT: 2, sumT: 8, atk: '', deadT: 0,
+    atkT: 2, sumT: 8, atk: '', deadT: 0, kvx: 0, kvz: 0, vy: 0, flinch: 0, spin: 0, numAcc: 0, numHead: false, numT: 0,
   };
   m.maxHp = m.hp;
-  if (mini) { m.mini = { def: mini, t: mini.every * 0.6, charging: 0, dx: 0, dz: 0 }; barRef = m; $('bossName').textContent = mini.name; $('bossbar').hidden = false; }
+  if (mini) { m.mini = { def: mini, t: mini.every * 0.6, charging: 0, dx: 0, dz: 0 }; barRef = m; fightClean = true; $('bossName').textContent = mini.name; $('bossbar').hidden = false; }
   if (!boss && !mini) {
     const w = clamp(m.r * 1.8, 0.8, 1.7), bg = new T.Sprite(BAR_BG), fm = new T.SpriteMaterial({ color: 0x52d273, fog: true, depthWrite: false }), fill = new T.Sprite(fm);
     bg.scale.set(w + 0.08, 0.15, 1); fill.center.set(0, 0.5); fill.scale.set(w, 0.1, 1); fill.renderOrder = 2; bg.renderOrder = 1;
     scene.add(bg, fill); m.bar = { bg, fill, fm, w, top: BAR_TOP[type] * sc + 0.3, c: 0x52d273 };
   }
-  if (boss) { m.state = 'rise'; bossRef = m; barRef = m; }
+  if (boss) { m.state = 'rise'; bossRef = m; barRef = m; fightClean = true; }
   monsters.push(m);
   if (Math.random() < 0.3 || elite || boss) AU.play(boss ? 'roar' : 'growl', 0.3);
   return m;
@@ -165,14 +92,32 @@ function animMonster(m, dt, moving) {
   if (P.body) { const k = 1 + (m.wind > 0 ? (1 - m.wind / m.windMax) * 0.18 : 0); P.body.scale.set(P.bodyS.x * k, P.bodyS.y * k, P.bodyS.z * k); }
   if (P.core) { const k = 0.8 + Math.sin(m.t * 6) * 0.2; P.core.scale.set(0.45 * k, 0.45 * k, 0.3 * k); }
   if (P.aura) P.aura.rotation.y += dt * 2;
+  if (P.jaw) P.jaw.rotation.x = m.wind > 0 ? (1 - m.wind / m.windMax) * 0.55 : 0.12 + Math.sin(m.t * 3) * 0.06;
+  if (P.sacks) P.sacks.forEach((sk, k) => { const s = 1 + Math.sin(m.t * 4 + k * 1.3) * 0.12; sk.scale.setScalar(sk.userData.s0 * s); });
 }
 
-function applyBurn(m, dps, dur) { if (m.state === 'dead') return; m.burn = Math.max(m.burn, dur); m.burnDps = Math.max(m.burnDps, dps); }
+function applyBurn(m, dps, dur) { if (m.state === 'dead') return; if (m.burn <= 0) achAdd('burned'); m.burn = Math.max(m.burn, dur); m.burnDps = Math.max(m.burnDps, dps); }
 
-function damageMonster(m, amount, at, head) {
+// Rückstoß: wie stark ein Treffer das Monster zurückwirft (Bosse fast gar nicht)
+function heft(m) { return m.boss ? 0.06 : m.mini ? 0.2 : m.type === 'koloss' ? 0.45 : 1; }
+function knockMonster(m, kb, amount) {
+  const gp = m.g.position, dx = gp.x - player.pos.x, dz = gp.z - player.pos.z, d = Math.hypot(dx, dz) || 1, h = heft(m);
+  m.kvx += dx / d * kb * h; m.kvz += dz / d * kb * h;
+  m.flinch = Math.min(1, m.flinch + (0.35 + kb * 0.1) * h);
+  // ein harter Treffer unterbricht den Angriff
+  if (h === 1 && amount > m.maxHp * 0.2 && m.wind > 0) { m.wind = 0; m.cd = 0.5; }
+}
+function launchMonster(m, fx, fz, power) {
+  const gp = m.g.position, dx = gp.x - fx, dz = gp.z - fz, d = Math.hypot(dx, dz) || 1, h = heft(m);
+  m.kvx += dx / d * power * h; m.kvz += dz / d * power * h;
+  m.vy = Math.max(m.vy, power * 0.6 * h); m.flinch = 1; m.spin = rand(-7, 7) * h;
+  if (h === 1) { m.wind = 0; m.cd = 0.6; }
+}
+function damageMonster(m, amount, at, head, kb) {
   if (m.state === 'dead') return false;
-  m.hp -= amount; m.flash = 0.1;
-  showHitmark(head);
+  m.hp -= amount; m.flash = 0.1; m.numAcc += amount; if (head) m.numHead = true;
+  showHitmark(head); if (head) achAdd('heads');
+  if (kb) knockMonster(m, kb, amount);
   if (at) bloodBurst(at.x, at.y, at.z, Math.min(18, 4 + (amount / 10) | 0), m.boss ? 1.4 : 1);
   if (brandOn()) applyBurn(m, amount * burnFrac(), burnDur());
   if (m.hp <= 0) { killMonster(m); return true; }
@@ -184,7 +129,7 @@ function killMonster(m) {
   m.skin.emissive.setHex(0);
   m.P.eyes.forEach(e => { e.visible = false; }); if (m.P.aura) m.P.aura.visible = false;
   if (m.gold) { SV.money += m.gold; popGold(m.gold); AU.play('coin', 0.05); }
-  SV.kills++;
+  SV.kills++; achAdd('kills'); if (SV.cur === 'holz') achAdd('killHolz');
   const p = m.g.position;
   bloodBurst(p.x, p.y + 0.9 * m.sc, p.z, m.boss ? 80 : 26, m.boss ? 2.4 : 1.3);
   addDecal(p.x, p.z, rand(1.2, 2.2) * m.sc * (m.boss ? 2 : 1), 0x3a0406);
@@ -195,14 +140,14 @@ function killMonster(m) {
   else if (m.mini) {
     barRef = null; $('bossbar').hidden = true;
     spawnPickup(p.x + 1, p.z, 'gren'); spawnPickup(p.x - 1, p.z);
-    showMsg(`${m.mini.def.name} ist besiegt!`); AU.play('clear');
+    showMsg(`${m.mini.def.name} ist besiegt!`); AU.play('clear'); achMiniDown(m);
   }
 }
 
 function hurtPlayer(d) {
   if (GS !== 'play' || player.dead || winT >= 0) return;
   if (safeIdx() >= 0 || player.inv > 0) return;
-  player.sinceHit = 0; player.hp -= d; player.hurt = Math.min(1, player.hurt + 0.35 + d / 60);
+  player.sinceHit = 0; fightClean = false; player.hp -= d; player.hurt = Math.min(1, player.hurt + 0.35 + d / 60);
   shake = Math.max(shake, 0.12 + d / 120);
   AU.play('hurt', 0.08);
   if (OPT.vib) try { navigator.vibrate && navigator.vibrate(35); } catch (e) { }
@@ -226,8 +171,16 @@ function updateMonsters(dt) {
     const m = monsters[i], g = m.g, gp = g.position;
     m.t += dt;
     if (m.flash > 0) { m.flash -= dt; m.skin.emissive.setHex(m.flash > 0 ? 0x701010 : (m.elite ? 0x220000 : 0)); }
+    // Schadenszahlen sammeln und gebündelt anzeigen
+    if (m.numAcc > 0) { m.numT -= dt; if (m.numT <= 0 || m.state === 'dead') { dmgNumber(gp.x, gp.y + (BAR_TOP[m.type] || 6.5) * m.sc + 0.2, gp.z, m.numAcc, m.numHead); m.numAcc = 0; m.numHead = false; m.numT = 0.18; } }
     if (m.state === 'dead') {
-      m.deadT += dt; g.rotation.x = -Math.PI / 2 * Math.min(1, m.deadT / (m.boss ? 1.2 : 0.45));
+      m.deadT += dt;
+      // weggeschleuderte Körper fliegen weiter
+      if (m.deadT < 2) {
+        gp.x = clamp(gp.x + m.kvx * dt, -HALF_W, HALF_W); gp.z += m.kvz * dt; const f = Math.max(0, 1 - dt * 3); m.kvx *= f; m.kvz *= f;
+        if (gp.y > 0 || m.vy > 0) { m.vy -= 22 * dt; gp.y = Math.max(0, gp.y + m.vy * dt); g.rotation.z += m.spin * dt; }
+      }
+      g.rotation.x = -Math.PI / 2 * Math.min(1, m.deadT / (m.boss ? 1.2 : 0.45));
       if (m.deadT > 2.2) gp.y -= dt * 0.7;
       if (m.deadT > 4.5) removeMonster(i);
       continue;
@@ -280,7 +233,12 @@ function updateMonsters(dt) {
     const len = Math.hypot(mvx, mvz);
     const moving = len > 0.01 ? 1 : 0;
     const ox = gp.x, oz = gp.z;
+    sp *= 1 - m.flinch * 0.85; // getroffen: kurz taumeln
     if (moving) { gp.x += mvx / len * sp * dt; gp.z += mvz / len * sp * dt; }
+    if (m.kvx || m.kvz) { gp.x += m.kvx * dt; gp.z += m.kvz * dt; const f = Math.max(0, 1 - dt * 7); m.kvx *= f; m.kvz *= f; if (Math.abs(m.kvx) + Math.abs(m.kvz) < 0.05) m.kvx = m.kvz = 0; }
+    if (gp.y > 0 || m.vy > 0) { m.vy -= 22 * dt; gp.y = Math.max(0, gp.y + m.vy * dt); g.rotation.z += m.spin * dt; if (gp.y === 0) { m.vy = 0; smokePuff(gp.x, 0.1, gp.z, 3, 0.16); } }
+    else if (g.rotation.z) g.rotation.z = angLerp(g.rotation.z, 0, dt * 10);
+    m.flinch = Math.max(0, m.flinch - dt * 4);
     // nicht in den Spieler hineinlaufen
     { const qx = gp.x - px, qz = gp.z - pz, d = Math.hypot(qx, qz), lim = m.r + player.r; if (d < lim && d > 1e-4) { gp.x = px + qx / d * lim; gp.z = pz + qz / d * lim; } }
     m.blocked = resolveCircle(gp, m.r, true);
@@ -294,6 +252,7 @@ function updateMonsters(dt) {
     // zu weit weg: näher heranholen
     if (dist > 60 && !m.boss) { const p = spawnPos(curArea()); gp.x = p[0]; gp.z = p[1]; }
     g.rotation.y = angLerp(g.rotation.y, Math.atan2(nx, nz), dt * 8);
+    g.rotation.x = -0.45 * m.flinch;
     animMonster(m, dt, moving);
   }
 }
@@ -333,8 +292,10 @@ function updateBoss(m, dt, dist, nx, nz) {
   return [0, 0, 0];
 }
 function bossDefeated(m) {
-  $('bossbar').hidden = true; winT = 0;
+  $('bossbar').hidden = true; achBossDown();
   shake = 1; AU.play('boom'); AU.play('roar');
+  if (MODE === 'endlos') { barRef = null; showMsg('Die Königin ist gefallen. Das Portal spuckt weiter.'); return; }
+  winT = 0;
   for (const o of monsters) if (o !== m && o.state !== 'dead') killMonster(o);
   showMsg('Die Monsterkönigin ist besiegt!');
 }
@@ -463,4 +424,25 @@ function updateMini(m, dt, dist, nx, nz) {
   if (dist < m.range && m.cd <= 0 && safeIdx() < 0) { m.atk = 'melee'; m.wind = m.windMax = 0.5; return [0, 0, 0]; }
   if (dist > m.range * 0.75) return [nx, nz, m.spd];
   return [0, 0, 0];
+}
+
+// ---------- Leuchtende Augen (alle Monster in einem Draw-Call) ----------
+let PE = null, peN = 0;
+const _ec = HAS_THREE ? new T.Color() : null;
+function updateEyeGlow() {
+  if (!PE) PE = new PSys(220, true, true);
+  let i = 0; const p = PE.p, c = PE.c, s = PE.s;
+  for (const m of monsters) {
+    if (m.state === 'dead') continue;
+    _ec.setHex(m.P.eyeColor || 0xffffff);
+    for (const e of m.P.eyes) {
+      if (i >= PE.n) break;
+      e.getWorldPosition(_v);
+      p[i * 3] = _v.x; p[i * 3 + 1] = _v.y; p[i * 3 + 2] = _v.z;
+      c[i * 4] = _ec.r; c[i * 4 + 1] = _ec.g; c[i * 4 + 2] = _ec.b; c[i * 4 + 3] = 0.55;
+      s[i] = 0.32 * m.sc * (m.boss ? 1.4 : 1); i++;
+    }
+  }
+  for (let k = i; k < peN; k++) s[k] = 0;
+  peN = i; PE.pa.needsUpdate = true; PE.ca.needsUpdate = true; PE.sa.needsUpdate = true;
 }

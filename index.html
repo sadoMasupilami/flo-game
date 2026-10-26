@@ -86,10 +86,17 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 #feed{position:absolute;left:50%;top:57%;width:0;height:0}
 #feed span{position:absolute;left:0;top:0;transform:translateX(-50%);font:700 20px/1 var(--f-ui);color:var(--lamp);text-shadow:0 1px 3px #000;white-space:nowrap;animation:up .9s ease-out forwards}
 @keyframes up{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-46px)}}
+#dnums{position:absolute;left:0;top:0;width:0;height:0}
+.dn{position:absolute;left:0;top:0;font:700 18px/1 var(--f-ui);color:#fff;text-shadow:0 1px 3px #000,0 0 6px rgba(0,0,0,.8);white-space:nowrap;font-variant-numeric:tabular-nums;will-change:transform}
+.dn.head{color:#ffd166;font-size:23px}
 #toast{position:absolute;left:0;right:0;top:30%;text-align:center;opacity:0;transition:opacity .6s;padding-left:var(--gl);padding-right:var(--gr)}
 #toast.show{opacity:1}
 #toast small{display:block;font:600 14px var(--f-ui);letter-spacing:.32em;text-transform:uppercase;color:var(--dim)}
 #toast b{display:block;font:400 clamp(40px,8vw,74px)/1 var(--f-title);color:var(--ink);text-shadow:0 0 22px rgba(0,0,0,.9);text-wrap:balance}
+#say{position:absolute;left:50%;bottom:calc(var(--sb) + 96px);transform:translate(-50%,10px);max-width:min(78vw,560px);width:max-content;background:rgba(14,11,9,.86);border-left:3px solid var(--lamp);padding:8px 14px;opacity:0;transition:opacity .3s,transform .3s}
+#say.show{opacity:1;transform:translate(-50%,0)}
+#say small{display:block;font:700 11px var(--f-ui);letter-spacing:.2em;text-transform:uppercase;color:var(--lamp)}
+#say span{font:400 15px/1.4 var(--f-note);color:#e6dccb}
 #msg{position:absolute;left:0;right:0;top:64%;text-align:center;font:700 19px/1.2 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;text-shadow:0 1px 4px #000;opacity:0;transition:opacity .3s;padding-left:var(--gl);padding-right:var(--gr)}
 #msg.show{opacity:1}
 #vig{position:fixed;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(150,0,12,.8));opacity:0}
@@ -199,6 +206,19 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 .setgrid select{font:600 16px var(--f-ui);color:var(--ink);background:#1d1819;border:1px solid var(--line2);padding:8px 10px;max-width:100%;justify-self:start}
 .setgrid input[type=range]{width:100%;max-width:260px;accent-color:var(--lamp)}
 .setgrid input[type=checkbox]{width:22px;height:22px;accent-color:var(--lamp);justify-self:start}
+#achToast{position:fixed;z-index:6;right:var(--gr);top:calc(var(--st) + 64px);background:rgba(20,14,6,.92);border:1.5px solid var(--lamp);padding:8px 14px;pointer-events:none;transform:translateX(calc(100% + 40px));transition:transform .35s ease;box-shadow:0 0 24px rgba(240,174,78,.35)}
+#achToast.show{transform:none}
+#achToast small{display:block;font:600 11px var(--f-ui);letter-spacing:.18em;text-transform:uppercase;color:var(--lamp)}
+#achToast b{font:700 19px/1.1 var(--f-ui)}
+.ach{background:var(--card);border:1px solid var(--line);padding:12px;display:grid;gap:5px;align-content:start;opacity:.6}
+.ach.got{opacity:1;border-color:rgba(240,174,78,.55)}
+.ach b{font:700 19px/1.1 var(--f-ui)}
+.ach.got b{color:var(--lamp)}
+.ach p{margin:0;color:var(--dim);font-size:15px;line-height:1.3}
+.aprog{font:600 13px var(--f-ui);letter-spacing:.06em;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.abar{display:block;height:4px;background:rgba(236,226,210,.12)}
+.abar i{display:block;height:100%;background:var(--lamp);transform-origin:left}
+@media (prefers-reduced-motion:reduce){#achToast{transition:none}}
 #loadErr{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding-inline:24px;z-index:30;background:var(--night)}
 @media (prefers-reduced-motion:reduce){#feed span{animation-duration:.01s}}
 </style>
@@ -220,12 +240,15 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
   <div id="cross"></div>
   <div id="hit"></div>
   <div id="feed"></div>
+  <div id="dnums"></div>
   <div id="toast"><small id="toastS"></small><b id="toastB"></b></div>
   <div id="msg"></div>
+  <div id="say"><small id="sayWho">Mara</small><span id="sayText"></span></div>
 </div>
 <div id="vig"></div>
 <div id="amp"></div>
 <div id="healfx"></div>
+<div id="achToast" role="status"><small>Erfolg freigeschaltet</small><b id="achName"></b></div>
 <div id="rotate" hidden>Dreh dein Handy quer, dann siehst du mehr.</div>
 
 <div id="controls" hidden>
@@ -252,6 +275,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
     <div class="actions">
       <button id="btnContinue" class="btn primary" hidden>Weiterspielen</button>
       <button id="btnNew" class="btn">Neues Spiel</button>
+      <button id="btnEndless" class="btn" hidden>Endlos-Modus</button>
     </div>
     <div id="confirmNew" class="confirm" hidden>
       <span>Dein Spielstand wird gelöscht.</span>
@@ -281,7 +305,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
         <dt>Tastatur</dt><dd>WASD laufen, Shift sprinten, F ausweichen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf</dd>
       </dl>
     </details>
-    <div class="actions" style="margin-top:14px"><button id="btnSetM" class="btn small">Einstellungen</button></div>
+    <div class="actions" style="margin-top:14px"><button id="btnSetM" class="btn small">Einstellungen</button><button id="btnAchM" class="btn small">Erfolge</button></div>
   </div>
 </section>
 
@@ -316,6 +340,14 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
   </div>
 </section>
 
+<section id="erfolge" class="ov" hidden>
+  <div class="card shop">
+    <div class="shop-head"><div><p class="eyebrow">Erfolge</p><h2>Ruhmeshalle</h2></div><p class="small" id="achCount" style="margin:0"></p></div>
+    <div class="grid" id="achList" style="margin-top:12px"></div>
+    <div class="shop-foot"><span></span><button id="btnAchBack" class="btn primary">Zurück</button></div>
+  </div>
+</section>
+
 <section id="settings" class="ov" hidden>
   <div class="card">
     <p class="eyebrow">Einstellungen</p>
@@ -328,6 +360,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
       <label for="optSound">Ton</label><input type="checkbox" id="optSound">
       <label for="optMusic">Musik</label><input type="checkbox" id="optMusic">
       <label for="optVib">Vibration</label><input type="checkbox" id="optVib">
+      <label for="optNums">Schadenszahlen</label><input type="checkbox" id="optNums">
     </div>
     <button id="btnSetBack" class="btn primary">Fertig</button>
   </div>
@@ -337,7 +370,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
   <div class="card">
     <p class="big">Besiegt</p>
     <p class="lede" id="deadText"></p>
-    <button id="btnRespawn" class="btn primary">Zurück zum Unterschlupf</button>
+    <div class="actions"><button id="btnRespawn" class="btn primary">Zurück zum Unterschlupf</button><button id="btnDeadMenu" class="btn" hidden>Hauptmenü</button></div>
   </div>
 </section>
 
@@ -359,14 +392,19 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
   </div>
 </section>
 
-<div id="loadErr" hidden><p>Die 3D-Grafik konnte nicht geladen werden. Prüf deine Internetverbindung und lade die Seite neu.</p></div>
+<div id="loadErr" hidden><p>Die 3D-Grafik konnte nicht geladen werden. Lade die Seite bitte neu.</p></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/vendor/three.min.js"></script>
 <script src="js/core.js"></script>
+<script src="js/textures.js"></script>
 <script src="js/music.js"></script>
 <script src="js/world.js"></script>
+<script src="js/atmos.js"></script>
+<script src="js/models.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/combat.js"></script>
+<script src="js/erfolge.js"></script>
+<script src="js/endlos.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
