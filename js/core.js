@@ -21,8 +21,22 @@ const rr = (a, b) => a + R() * (b - a);
 const rpick = a => a[(R() * a.length) | 0];
 
 // ---------- Spieldaten ----------
-const AREA_LEN = 130, HALF_W = 18.2, Z_MAX = 5.5, Z_MIN = -786, SAFE_R = 3.3, GOLD = 1.25;
-const ZS = a => -a * AREA_LEN;
+// Offene Welt: sechs Gebiete als Felder von 140 × 140 m, zwei Spalten und drei Reihen.
+// So liegen sie auf der Karte (oben ist Richtung Stadt, also -z):
+//   Vorstadt (5)  Stadtzentrum (6)
+//   Dorf (3)      Autobahn (4)
+//   Hof (1)       Finsterwald (2)
+// Innen ist jedes Gebiet wie früher als Straße gebaut: dz = 0 ist der Rand zum Hof hin, dz = -130 der Rand zur Stadt hin.
+const AREA_LEN = 130, TILE = 140, HALF_W = 18.2, SAFE_R = 3.3, GOLD = 1.25;
+const REG = [[-70, 140], [70, 140], [-70, 0], [70, 0], [-70, -140], [70, -140]].map(([cx, cz]) => ({ cx, cz }));
+const WORLD = { x0: -140, x1: 140, z0: -210, z1: 210 };
+const ZS = a => -a * AREA_LEN;                  // Anfang (dz = 0) des Gebiets in den alten Bau-Koordinaten
+const WX = (a, x) => REG[a].cx + x, WZ = (a, dz) => REG[a].cz + 65 + dz; // Gebiets- in Weltkoordinaten
+function areaAt(x, z) { return (z > 70 ? 0 : z > -70 ? 2 : 4) + (x < 0 ? 0 : 1); }
+function inWorld(x, z, pad) { pad = pad || 0; return x > WORLD.x0 + pad && x < WORLD.x1 - pad && z > WORLD.z0 + pad && z < WORLD.z1 - pad; }
+const clampX = (x, pad) => clamp(x, WORLD.x0 + (pad || 1), WORLD.x1 - (pad || 1)), clampZ = (z, pad) => clamp(z, WORLD.z0 + (pad || 1), WORLD.z1 - (pad || 1));
+// Platz vor dem Portal: hinter der Barriere, zwischen den Hochhäusern
+function inPlaza(x, z) { return Math.abs(x - REG[5].cx) < 16.5 && z < WZ(5, -76) && z > WZ(5, -136); }
 const AREAS = [
   { name: 'Der Hof', fog: 0x0b1110, dens: 0.05 },
   { name: 'Finsterwald', fog: 0x08100c, dens: 0.06 },
@@ -39,16 +53,22 @@ const SHELTERS = [
   { name: 'Tankstelle', sign: 'TANKSTELLE', color: 0x55524a },
   { name: 'U-Bahn-Station', sign: 'U-BAHN', color: 0x3d4148 },
 ];
-const SAFE = SHELTERS.map((s, i) => ({ x: 11.2, z: ZS(i) - 8, r: SAFE_R }));
+const SAFE = SHELTERS.map((s, i) => ({ x: WX(i, 11.2), z: WZ(i, -8), r: SAFE_R }));
+// Monsternester: [x, dz] im Gebiet. Im Stadtzentrum ist das Nest der Platz vor dem Portal.
+const NEST_SPOTS = [[4, -86], [-3, -100], [-6, -74], [-3, -114], [2, -118], [0, -104]];
+const NEST_R = 15;
 
+// Geschichte je Unterschlupf. In der offenen Welt kann man sie in beliebiger Reihenfolge finden.
 const STORY = [
-  { kicker: 'Funkspruch · 00:14 Uhr', title: 'Die Nacht, in der sie kamen', text: 'Im Radio knistert eine Stimme: Über dem Stadtzentrum hat sich ein Portal geöffnet. Monster strömen heraus und ziehen über das Land.\n\nDeine Großeltern sind am Abend in die Stadt gefahren und nicht zurückgekommen. Du nimmst Opas altes Holzschwert von der Wand.\n\nDer Weg führt über den Hof, durch den Finsterwald und das Dorf, über die Autobahn und durch die Vorstadt. Irgendwer muss dieses Portal schließen.' },
-  { kicker: 'Försterhütte', title: 'Mara', text: 'In der Hütte sitzt eine Frau mit einem Rucksack voller Waffen. „Ich bin Mara. Ich handle mit allem, was gegen Monster hilft. Umsonst ist nichts.“\n\nSie zeigt auf deine Taschen. „Die Viecher lassen Münzen fallen. Frag mich nicht, warum.“\n\nNeu bei Mara: die Fähigkeit Bauer. Damit stellst du Kisten und später Steine auf, die dich schützen.' },
-  { kicker: 'Feuerwehrhaus', title: 'Der rote Kreis', text: 'Das Feuerwehrhaus ist verbarrikadiert, aber die Hintertür ist offen. An der Wand hängt eine Karte. Jemand hat mit rotem Stift einen Kreis um das Stadtzentrum gemalt und daneben geschrieben: NICHT HINGEHEN.\n\nMara ist schon da. „Je näher du dem Portal kommst, desto stärker werden sie. Kauf klug.“\n\nNeu: die Fähigkeit Verstärker. Sie verdoppelt eine Zeit lang deinen Schaden.' },
-  { kicker: 'Raststätte', title: 'Die Königin', text: 'Die Raststätte riecht nach kaltem Kaffee. Aus einem Funkgerät hörst du andere Überlebende: Die Monster gehorchen einer Königin. Sie sitzt im Portal und schickt immer mehr von ihnen.\n\n„Wer sie erledigt, schließt das Portal“, sagt Mara. „Hoffe ich jedenfalls.“\n\nNeu: die Fähigkeit Verbrenner. Was du triffst, fängt Feuer.' },
-  { kicker: 'Tankstelle', title: 'Opas Mütze', text: 'Auf dem Boden der Tankstelle liegt Opas Mütze. Sie sind hier durchgekommen. Vielleicht leben sie noch.\n\nMara legt einen Raketenwerfer auf den Tresen. „Den wirst du brauchen.“\n\nNeu: die Fähigkeit Heiler.' },
-  { kicker: 'U-Bahn-Station', title: 'Der letzte sichere Ort', text: 'Über den Hochhäusern pulsiert das Portal violett. Der Boden zittert.\n\n„Eine letzte Lieferung“, sagt Mara und schiebt dir einen Feuerwerfer hin. „Viel Glück. Ehrlich.“\n\nHinter der Station wartet die Monsterkönigin.' },
+  { kicker: 'Funkspruch · 00:14 Uhr', title: 'Die Nacht, in der sie kamen', text: 'Im Radio knistert eine Stimme: Über dem Stadtzentrum hat sich ein Portal geöffnet. Monster strömen heraus und ziehen über das Land.\n\nDeine Großeltern sind am Abend in die Stadt gefahren und nicht zurückgekommen. Du nimmst Opas altes Holzschwert von der Wand.\n\nAuf Opas Karte siehst du das ganze Land: den Hof, den Finsterwald, das Dorf, die Autobahn, die Vorstadt und ganz im Süden das Stadtzentrum. In jedem Gebiet hat sich ein Monsternest gebildet. Erst wenn alle fünf Nester zerstört sind, fällt die Barriere vor dem Portal.' },
+  { kicker: 'Försterhütte', title: 'Spuren im Schlamm', text: 'Vor der Hütte ist der Boden aufgewühlt. Große Spuren und kleine, und alle führen in dieselbe Richtung: tiefer in den Wald, dorthin, wo es violett schimmert.\n\nAn der Tür klebt ein Zettel vom Förster: BIN IN DER STADT. KOMME NICHT HINTERHER.' },
+  { kicker: 'Feuerwehrhaus', title: 'Der rote Kreis', text: 'Das Feuerwehrhaus ist verbarrikadiert, aber die Hintertür ist offen. An der Wand hängt eine Karte. Jemand hat mit rotem Stift einen Kreis um das Stadtzentrum gemalt und daneben geschrieben: NICHT HINGEHEN.\n\nMara zuckt mit den Schultern. „Je näher du dem Portal kommst, desto stärker werden sie. Kauf klug.“' },
+  { kicker: 'Raststätte', title: 'Die Königin', text: 'Die Raststätte riecht nach kaltem Kaffee. Aus einem Funkgerät hörst du andere Überlebende: Die Monster gehorchen einer Königin. Sie sitzt im Portal und schickt immer mehr von ihnen.\n\n„Wer sie erledigt, schließt das Portal“, sagt Mara. „Aber vorher müssen die Nester weg. Solange eins steht, hält die Barriere.“' },
+  { kicker: 'Tankstelle', title: 'Opas Mütze', text: 'Auf dem Boden der Tankstelle liegt Opas Mütze. Sie sind hier durchgekommen. Vielleicht leben sie noch.\n\nMara legt einen Raketenwerfer auf den Tresen. „Den wirst du brauchen.“' },
+  { kicker: 'U-Bahn-Station', title: 'Der letzte sichere Ort', text: 'Über den Hochhäusern pulsiert das Portal violett. Der Boden zittert.\n\n„Eine letzte Lieferung“, sagt Mara und schiebt dir einen Feuerwerfer hin. „Viel Glück. Ehrlich.“\n\nHinter der Station wartet die Monsterkönigin, geschützt von einer roten Barriere. Die fällt erst, wenn alle fünf Nester zerstört sind.' },
 ];
+// Wenn man Mara zum ersten Mal trifft, egal in welchem Unterschlupf
+const MARA_STORY = { title: 'Mara', text: 'Im Unterschlupf sitzt eine Frau mit einem Rucksack voller Waffen. „Ich bin Mara. Ich handle mit allem, was gegen Monster hilft. Umsonst ist nichts.“\n\nSie zeigt auf deine Taschen. „Die Viecher lassen Münzen fallen. Frag mich nicht, warum.“\n\n„Du findest mich in jedem Unterschlupf. Und je weiter du dich in Richtung Stadt traust, desto bessere Ware habe ich dabei.“' };
 const WIN_TEXT = 'Die Monsterkönigin bricht zusammen. Das Portal zieht sich zu einem Punkt zusammen und erlischt mit einem Knall.\n\nIm ersten Morgenlicht kommen Menschen aus Kellern und U-Bahn-Schächten. Zwischen ihnen stehen deine Großeltern. Opa zeigt auf das Holzschwert an deinem Gürtel und grinst.';
 const TRADER = [
   'Hier liegt noch Opas Werkzeugkiste. Ein paar Münzen und du kannst dir eine Steinschleuder basteln.',
@@ -161,12 +181,21 @@ const SAVE_KEY = 'portalnacht.save.v1', OPT_KEY = 'portalnacht.opts.v1';
 function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
-function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
+function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, reached: 0, freed: {}, visited: { 0: 1 }, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
 let SV = freshSave();
 const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, nums: true, weather: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
 function hasSave() { const s = lsGet(SAVE_KEY); return !!(s && s.weapons); }
-function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); return true; } return false; }
+function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); migrateSave(s); return true; } return false; }
+// Spielstände aus der Zeit vor der offenen Welt: Was vor dem letzten Unterschlupf lag, war damals schon geschafft
+function migrateSave(s) {
+  if (s.freed) return;
+  const cp = s.checkpoint || 0;
+  SV.reached = cp; SV.freed = {}; SV.visited = {};
+  for (let a = 0; a < cp; a++) SV.freed[a] = 1;
+  for (let a = 0; a <= cp; a++) SV.visited[a] = 1;
+  if (SV.seen[1]) SV.seen.mara = 1;
+}
 function saveOpts() { lsSet(OPT_KEY, OPT); }
 
 // ---------- Ton (alles synthetisch) ----------

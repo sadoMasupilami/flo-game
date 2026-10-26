@@ -105,15 +105,16 @@ function raySphere(o, d, c, r) {
   const ox = o.x - c.x, oy = o.y - c.y, oz = o.z - c.z, b = ox * d.x + oy * d.y + oz * d.z, cc = ox * ox + oy * oy + oz * oz - r * r, h = b * b - cc;
   if (h < 0) return -1; const s = Math.sqrt(h), t = -b - s; return t > 0 ? t : (-b + s > 0 ? 0 : -1);
 }
+const _rb = { t0: 0, t1: 0 };
 function rayBox(o, d, s) {
-  let tmin = 0, tmax = 1e9;
-  const ax = [[o.x, d.x, s.x0, s.x1], [o.y, d.y, s.y0, s.y1], [o.z, d.z, s.z0, s.z1]];
-  for (const [p, v, a, b] of ax) {
-    if (Math.abs(v) < 1e-6) { if (p < a || p > b) return -1; continue; }
-    let t1 = (a - p) / v, t2 = (b - p) / v; if (t1 > t2) { const q = t1; t1 = t2; t2 = q; }
-    tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2); if (tmin > tmax) return -1;
-  }
-  return tmin;
+  const r = _rb; r.t0 = 0; r.t1 = 1e9;
+  if (!slab(o.x, d.x, s.x0, s.x1, r) || !slab(o.y, d.y, s.y0, s.y1, r) || !slab(o.z, d.z, s.z0, s.z1, r)) return -1;
+  return r.t0;
+}
+function slab(p, v, a, b, r) {
+  if (Math.abs(v) < 1e-6) return p >= a && p <= b;
+  let t1 = (a - p) / v, t2 = (b - p) / v; if (t1 > t2) { const q = t1; t1 = t2; t2 = q; }
+  r.t0 = Math.max(r.t0, t1); r.t1 = Math.min(r.t1, t2); return r.t0 <= r.t1;
 }
 function segSphere(a, b, c, r) {
   const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z, l2 = abx * abx + aby * aby + abz * abz || 1e-6;
@@ -226,7 +227,7 @@ function updateProjs(dt) {
     }
     if (!done) {
       let hitWall = to.y <= 0.02;
-      if (!hitWall) for (const s of solids) if (!s.off && inBox(to, s)) { hitWall = true; break; }
+      if (!hitWall) for (const s of solidsIn(to.x, to.z, to.x, to.z)) if (!s.off && inBox(to, s)) { hitWall = true; break; }
       if (hitWall) {
         if (p.rocket) explode(to, p.dmg, p.splash);
         else if (p.boom) explode(to, p.dmg * 0.6, 2.5, false);
@@ -267,7 +268,7 @@ function updateAcids(dt) {
     let end = a.life <= 0 || p.y < 0.05;
     if (!end && Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < 0.6 && Math.abs(p.y - (player.eye - 0.5)) < 1) { hurtPlayer(a.dmg); end = true; }
     if (!end) for (const b of barricades) if (p.x > b.x0 && p.x < b.x1 && p.z > b.z0 && p.z < b.z1 && p.y < b.h + 0.2) { b.hp -= a.dmg; b.shake = 0.2; if (b.hp <= 0) destroyBarricade(b); end = true; break; }
-    if (!end) for (const s of solids) if (!s.off && inBox(p, s)) { end = true; break; }
+    if (!end) for (const s of solidsIn(p.x, p.z, p.x, p.z)) if (!s.off && inBox(p, s)) { end = true; break; }
     if (end) { for (let k = 0; k < 10; k++) PG.emit(p.x, Math.max(0.1, p.y), p.z, rand(-2, 2), rand(0.5, 3), rand(-2, 2), rand(0.3, 0.6), c[0], c[1], c[2], rand(0.06, 0.12), 8, 0, 0, 1); scene.remove(a.mesh); acids.splice(i, 1); }
   }
 }
@@ -334,7 +335,8 @@ function hitscan(o, d, dmg, range, kb, opt) {
   opt = opt || {};
   // Wand oder Boden begrenzen den Schuss
   let wall = range, what = 0;
-  for (const s of solids) { if (s.off) continue; const t = rayBox(o, d, s); if (t >= 0 && t < wall) { wall = t; what = 2; } }
+  const ex = o.x + d.x * range, ez = o.z + d.z * range;
+  for (const s of solidsIn(Math.min(o.x, ex), Math.min(o.z, ez), Math.max(o.x, ex), Math.max(o.z, ez))) { if (s.off) continue; const t = rayBox(o, d, s); if (t >= 0 && t < wall) { wall = t; what = 2; } }
   if (d.y < 0) { const t = -o.y / d.y; if (t < wall) { wall = t; what = 2; } }
   // alle getroffenen Monster davor, nach Entfernung sortiert
   const hits = [];
@@ -406,7 +408,7 @@ function updateGrenades(dt) {
     g.t -= dt; g.vel.y -= 14 * dt;
     p.addScaledVector(g.vel, dt);
     if (p.y < 0.12) { p.y = 0.12; if (g.vel.y < 0) { if (g.vel.y < -2) AU.play('tick', 0.08); g.vel.y *= -0.35; g.vel.x *= 0.6; g.vel.z *= 0.6; } }
-    for (const s of solids) if (!s.off && inBox(p, s)) { p.x = ox; p.z = oz; g.vel.x *= -0.4; g.vel.z *= -0.4; break; }
+    for (const s of solidsIn(p.x, p.z, p.x, p.z)) if (!s.off && inBox(p, s)) { p.x = ox; p.z = oz; g.vel.x *= -0.4; g.vel.z *= -0.4; break; }
     for (const m of monsters) if (m.state !== 'dead' && Math.hypot(m.g.position.x - p.x, m.g.position.z - p.z) < m.r + 0.3 && p.y < (BAR_TOP[m.type] || 2) * m.sc) { g.t = Math.min(g.t, 0.05); break; }
     g.mesh.rotation.x += dt * 8; g.led.visible = Math.sin(g.t * (g.t < 0.6 ? 40 : 14)) > 0;
     if (g.t <= 0) { explode(p.clone(), g.dmg, GREN_R, brandOn()); scene.remove(g.mesh); grenades.splice(i, 1); }

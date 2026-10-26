@@ -60,6 +60,8 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 .where .obj{font:600 17px/1.2 var(--f-ui);margin-top:3px;text-wrap:balance}
 .wpn{justify-self:end;text-align:right;text-shadow:0 1px 3px #000}
 .wpn b{display:block;font:700 18px/1 var(--f-ui);letter-spacing:.02em}
+#mini{display:block;width:104px;height:104px;margin:8px 0 0 auto;border-radius:50%;border:1.5px solid var(--line2);background:#0b0c0b;box-shadow:0 0 12px rgba(0,0,0,.7);pointer-events:auto;cursor:pointer;touch-action:none}
+@media (max-height:340px){#mini{width:84px;height:84px}}
 .pips{display:inline-flex;gap:3px;margin-top:5px}
 .pips i{width:12px;height:4px;background:rgba(236,226,210,.2)}
 .pips i.on{background:var(--lv1)}
@@ -230,6 +232,23 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 .abar{display:block;height:4px;background:rgba(236,226,210,.12)}
 .abar i{display:block;height:100%;background:var(--lamp);transform-origin:left}
 @media (prefers-reduced-motion:reduce){#achToast{transition:none}}
+/* Karte */
+.mapwrap{margin:auto;display:flex;gap:16px 22px;align-items:center;justify-content:center;width:100%;max-width:980px}
+#mapCv{display:block;height:min(calc(100dvh - 40px - var(--st) - var(--sb)), 132vw);aspect-ratio:2/3;flex:none;background:#0b0c0b;border:1px solid var(--line2);box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mapside{display:grid;gap:10px;align-content:center;max-width:300px}
+.mapside h2{font:400 clamp(28px,5vw,40px)/1 var(--f-title);color:var(--lamp);margin:0;letter-spacing:.02em}
+.legend{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin:0;font-size:15px;color:var(--dim)}
+.legend dd{margin:0}
+.legend dt{display:grid;place-items:center}
+.legend i{display:block;width:14px;height:14px;border-radius:50%;justify-self:center}
+.lg-me{background:#fff;clip-path:polygon(50% 0,100% 100%,50% 75%,0 100%);border-radius:0!important}
+.lg-shelter{background:#f0ae4e;clip-path:polygon(50% 0,100% 45%,85% 45%,85% 100%,15% 100%,15% 45%,0 45%);border-radius:0!important}
+.lg-nest{background:#b02cff;box-shadow:0 0 0 4px rgba(176,44,255,.28)}
+.lg-freed{background:#14281a;border:2px solid #74d68e}
+.lg-portal{border:3px solid #d58bff;background:rgba(154,60,255,.45)}
+.lg-goal{border:2px solid #ffd166}
+.lg-bar{height:4px!important;border-radius:0!important;background:#ff2238}
+@media (max-aspect-ratio:1/1){.mapwrap{flex-direction:column}#mapCv{height:auto;width:min(100%,62vh)}}
 #loadErr{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding-inline:24px;z-index:30;background:var(--night)}
 @media (prefers-reduced-motion:reduce){#feed span{animation-duration:.01s}}
 </style>
@@ -245,7 +264,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
       <div class="money"><b class="coin"></b><span id="money">0</span></div>
     </div>
     <div class="where"><div class="area" id="areaName">Gebiet 1 · Der Hof</div><div class="obj" id="objective">Folge dem Weg</div></div>
-    <div class="wpn"><b id="wName">Holzschwert</b><span class="pips" id="wPips"></span></div>
+    <div class="wpn"><b id="wName">Holzschwert</b><span class="pips" id="wPips"></span><canvas id="mini" aria-label="Karte öffnen"></canvas></div>
   </div>
   <div id="bossbar" hidden><div class="bn" id="bossName">Die Monsterkönigin</div><div class="bb"><i id="bossFill"></i></div></div>
   <div id="cross"></div>
@@ -281,9 +300,9 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 
 <section id="menu" class="ov">
   <div class="card">
-    <p class="eyebrow">Eine Nacht · sechs Gebiete · ein Portal</p>
+    <p class="eyebrow">Eine Nacht · ein offenes Land · ein Portal</p>
     <h1 class="title">Portalnacht</h1>
-    <p class="lede">Über dem Stadtzentrum hat sich ein Portal geöffnet und Monster überrennen das Land. Kämpf dich vom Hof deiner Großeltern bis in die Stadt und besiege die Monsterkönigin.</p>
+    <p class="lede">Über dem Stadtzentrum hat sich ein Portal geöffnet und Monster überrennen das Land. Zieh frei umher, zerstöre die fünf Monsternester und besiege die Monsterkönigin.</p>
     <div class="actions">
       <button id="btnContinue" class="btn primary" hidden>Weiterspielen</button>
       <button id="btnNew" class="btn">Neues Spiel</button>
@@ -315,7 +334,8 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
         <dt>Pfeil-Knopf</dt><dd>Waffe wechseln</dd>
         <dt>Granaten-Knopf</dt><dd>Granate werfen (die Zahl zeigt, wie viele du noch hast)</dd>
         <dt>Runde Knöpfe</dt><dd>Fähigkeiten, sobald du sie gekauft hast</dd>
-        <dt>Tastatur</dt><dd>WASD laufen, Shift sprinten, F ausweichen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf</dd>
+        <dt>Minikarte</dt><dd>Oben rechts. Antippen öffnet die große Karte. Der gelbe Pfeil zeigt zum nächsten Ziel.</dd>
+        <dt>Tastatur</dt><dd>WASD laufen, Shift sprinten, F ausweichen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf, M Karte</dd>
       </dl>
     </details>
     <div class="actions" style="margin-top:14px"><button id="btnSetM" class="btn small">Einstellungen</button><button id="btnAchM" class="btn small">Erfolge</button></div>
@@ -347,6 +367,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
     <div class="grid" id="shopList"></div>
     <div class="shop-foot">
       <div class="actions">
+        <button id="btnMapS" class="btn small">Karte</button>
         <button id="btnSetS" class="btn small">Einstellungen</button>
         <button id="btnMenu" class="btn small">Hauptmenü</button>
       </div>
@@ -379,6 +400,27 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
       <label for="optWeather">Regen und Gewitter</label><input type="checkbox" id="optWeather">
     </div>
     <button id="btnSetBack" class="btn primary">Fertig</button>
+  </div>
+</section>
+
+<section id="map" class="ov" hidden>
+  <div class="mapwrap">
+    <canvas id="mapCv" aria-label="Karte des Landes"></canvas>
+    <div class="mapside">
+      <div><p class="eyebrow">Opas Karte</p><h2>Das Land</h2></div>
+      <p class="small" id="mapInfo" style="margin:0;color:var(--ink)"></p>
+      <p class="small" id="mapGoal" style="margin:0;color:#ffd166"></p>
+      <dl class="legend">
+        <dt><i class="lg-me"></i></dt><dd>Du</dd>
+        <dt><i class="lg-goal"></i></dt><dd>Nächstes Ziel</dd>
+        <dt><i class="lg-shelter"></i></dt><dd>Unterschlupf (sicher, Mara)</dd>
+        <dt><i class="lg-nest"></i></dt><dd>Monsternest</dd>
+        <dt><i class="lg-freed"></i></dt><dd>Zerstörtes Nest</dd>
+        <dt><i class="lg-portal"></i></dt><dd>Portal der Königin</dd>
+        <dt><i class="lg-bar"></i></dt><dd>Barriere, fällt nach allen 5 Nestern</dd>
+      </dl>
+      <div class="actions"><button id="btnMapBack" class="btn primary">Zurück</button></div>
+    </div>
   </div>
 </section>
 
@@ -424,6 +466,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 <script src="js/erfolge.js"></script>
 <script src="js/geheimnisse.js"></script>
 <script src="js/endlos.js"></script>
+<script src="js/karte.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

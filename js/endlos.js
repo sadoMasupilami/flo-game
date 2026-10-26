@@ -9,19 +9,11 @@ function endlessTag() { return 'E' + EN.wave; }
 function startEndless() {
   MODE = 'endlos';
   resetWorld(5);
-  areaSt[5].done = true;   // keine Story-Wellen und kein Story-Endboss
+  for (const st of areaSt) st.done = true;   // keine Nester, keine Story-Wellen und kein Story-Endboss
   Object.assign(EN, { wave: 0, active: false, queue: [], spawnT: 0, breakT: 6 });
   lastArea = 5; showToast('Endlos-Modus', 'Überlebe!');
 }
-function endlessSpawnPos() {
-  for (let t = 0; t < 14; t++) {
-    const ang = rand(0, TAU), d = rand(13, 22);
-    const x = clamp(player.pos.x + Math.sin(ang) * d, -16, 16), z = clamp(player.pos.z - Math.cos(ang) * d, -775, -668);
-    if (Math.hypot(x - player.pos.x, z - player.pos.z) < 9) continue;
-    if (!blockedAt(x, z, 1) && !inSafe(x, z, 3)) return [x, z];
-  }
-  return [rand(-12, 12), -760];
-}
+function endlessSpawnPos() { return aroundPlayer(13, 22) || [clampX(player.pos.x + rand(-12, 12), 3), clampZ(player.pos.z - 20, 3)]; }
 function startEndlessWave() {
   EN.wave++; EN.active = true; EN.spawnT = 0.4;
   const w = EN.wave, n = Math.min(50, 8 + w * 2), q = [];
@@ -45,7 +37,8 @@ function updateEndless(dt) {
     if (EN.spawnT <= 0 && aliveCount() < 14) {
       const q = EN.queue.shift(), w = EN.wave, mult = { hp: 1 + 0.15 * (w - 1), dmg: 1 + 0.06 * (w - 1) };
       if (q.t === 'koenigin') {
-        spawnMonster('koenigin', 0, -770, { area: 5, wa: 'E', wj: endlessTag(), mult });
+        const p = aroundPlayer(16, 24) || endlessSpawnPos();
+        spawnMonster('koenigin', p[0], p[1], { area: 5, wa: 'E', wj: endlessTag(), mult });
         $('bossName').textContent = MT.koenigin.name; $('bossbar').hidden = false; AU.play('roar');
       } else {
         const p = endlessSpawnPos();

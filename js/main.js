@@ -1,6 +1,6 @@
 // Portalnacht – Steuerung, Oberfläche, Shop, Spielablauf
 'use strict';
-let GS = 'menu';             // menu | play | shop | story | dying | dead | paused | win
+let GS = 'menu';             // menu | play | shop | story | map | dying | dead | paused | win
 let curShelter = 0, shopTab = 'w', dyingT = 0, lastArea = -1, clock = 0, menuT = 0;
 const input = { jx: 0, jy: 0, keys: {}, firing: false };
 
@@ -124,7 +124,9 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 
 addEventListener('keydown', e => {
   input.keys[e.code] = true;
+  if (GS === 'map' && (e.code === 'KeyM' || e.code === 'Escape')) { closeMap(); return; }
   if (GS !== 'play') return;
+  if (e.code === 'KeyM') { openMap('play'); return; }
   if (e.code === 'KeyQ') swapWeapon();
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) useAbility(n); }
   if (e.code === 'KeyE') { const s = safeIdx(); if (s >= 0) openShelter(s); }
@@ -181,7 +183,7 @@ function updatePlayer(dt) {
   player.sinceHit += dt;
   if (player.sinceHit > 4 && player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + diff().regen * dt);
   const s = safeIdx();
-  if (MODE === 'story' && s > SV.checkpoint) { SV.checkpoint = s; saveGame(); showMsg('Unterschlupf erreicht · gespeichert'); }
+  if (MODE === 'story' && s >= 0 && s !== SV.checkpoint) { SV.checkpoint = s; saveGame(); showMsg('Unterschlupf erreicht · gespeichert'); }
 }
 function placeCamera(dt) {
   camera.position.set(player.pos.x, player.eye + Math.sin(player.bob * 2) * 0.035 * player.moveAmt, player.pos.z);
@@ -202,19 +204,19 @@ function pipsHTML(lv) { let s = ''; for (let i = 1; i <= 4; i++) s += `<i class=
 function objective(a) {
   if (MODE === 'endlos') return endlessObjective();
   if (safeIdx() >= 0) return 'Sicher. Hier kannst du Pause machen und einkaufen.';
-  const st = areaSt[a];
-  if (a === 5 && st.boss) return 'Besiege die Monsterkönigin!';
-  if (st.active) return `Welle ${st.wave + 1}/3 · noch ${waveRemaining(a, st.wave)} Monster`;
-  if (st.done && a < 5) return `Der Weg ist frei · Unterschlupf in ${Math.max(0, Math.round(player.pos.z - SAFE[a + 1].z))} m`;
-  if (a === 5 && st.wave === 2) return 'Geh zum Portal';
-  return 'Folge der Straße. Bleib wachsam.';
+  if (areaSt[5].boss) return 'Besiege die Monsterkönigin!';
+  for (let k = 0; k < 6; k++) { const st = areaSt[k]; if (st.active) return `${k === 5 ? 'Portal' : 'Monsternest'} · Welle ${st.wave + 1}/3 · noch ${waveRemaining(k, st.wave)} Monster`; }
+  if (!barrier.open && Math.hypot(player.pos.x - WX(5, 0), player.pos.z - WZ(5, -75)) < 16) return `Die Barriere fällt erst, wenn alle Nester zerstört sind (${freedCount()} von 5)`;
+  const g = nextGoal(), p = goalPos(), d = Math.round(Math.hypot(player.pos.x - p.x, player.pos.z - p.z));
+  if (g === 5) return `Die Barriere ist gefallen · Portal in ${d} m`;
+  return `Nächstes Nest: ${AREAS[g].name} · ${d} m`;
 }
 function updateHUD() {
   const hp = Math.ceil(player.hp);
   if (hc.hp !== hp) { hc.hp = hp; $('hpFill').style.transform = `scaleX(${player.hp / player.maxHp})`; $('hpText').textContent = `${hp} / ${player.maxHp}`; }
   setText('money', fmt(SV.money));
   const a = curArea();
-  setText('areaName', MODE === 'endlos' ? `Endlos-Modus · Rekord ${endlessBest()} Wellen` : `Gebiet ${a + 1} · ${AREAS[a].name}`);
+  setText('areaName', MODE === 'endlos' ? `Endlos-Modus · Rekord ${endlessBest()} Wellen` : `Gebiet ${a + 1} · ${AREAS[a].name}${a < 5 && SV.freed[a] ? ' · befreit' : ''}`);
   setText('objective', objective(a));
   const w = curWeapon(), lv = SV.weapons[w.id] || 1, wk = w.id + lv;
   if (hc.w !== wk) { hc.w = wk; $('wName').textContent = w.name; $('wName').className = 'l' + lv; $('wPips').innerHTML = pipsHTML(lv); }
@@ -238,28 +240,46 @@ function updateHUD() {
 function setPlayUI(on) { $('hud').hidden = !on; $('controls').hidden = !on; if (!on) { $('vig').style.opacity = 0; $('amp').style.opacity = 0; $('rotate').hidden = true; } }
 
 // ---------- Unterschlupf, Story, Shop ----------
-function hideOverlays() { for (const id of ['menu', 'story', 'shop', 'dead', 'paused', 'win', 'settings', 'erfolge']) $(id).hidden = true; }
+function hideOverlays() { for (const id of ['menu', 'story', 'shop', 'map', 'dead', 'paused', 'win', 'settings', 'erfolge']) $(id).hidden = true; }
 function showStory(s, cb) {
   GS = 'story'; hideOverlays();
   $('storyKicker').textContent = s.kicker; $('storyTitle').textContent = s.title; $('storyText').textContent = s.text;
   $('story').hidden = false; $('storyBtn').onclick = () => { $('story').hidden = true; cb(); };
 }
+function showStories(list, cb) { if (!list.length) cb(); else showStory(list[0], () => showStories(list.slice(1), cb)); }
+// was Mara neu dabeihat, wenn man zum ersten Mal einen gefährlicheren Unterschlupf erreicht
+function newStock(a0, a1) {
+  const l = [...WEAPONS, ...ABILITIES, ...GEAR].filter(x => x.avail > a0 && x.avail <= a1).map(x => x.name);
+  return l.length > 1 ? `${l.slice(0, -1).join(', ')} und ${l[l.length - 1]}` : l.join('');
+}
+// Mara verkauft alles bis zum gefährlichsten Unterschlupf, den man schon erreicht hat
+function stockLv() { return Math.max(SV.reached || 0, curShelter); }
 function openShelter(i) {
   resetInput(); AU.flame(false); flameOn = false;
   curShelter = i; player.maxHp = maxHpNow(); player.hp = player.maxHp;
-  if (MODE === 'story') SV.checkpoint = Math.max(SV.checkpoint, i);
+  const notes = [];
+  if (MODE === 'story') {
+    const before = SV.reached || 0; SV.checkpoint = i; SV.reached = Math.max(before, i);
+    if (i > 0 && !SV.seen.mara) { SV.seen.mara = 1; notes.push(Object.assign({ kicker: SHELTERS[i].name }, MARA_STORY)); }
+    if (!SV.seen[i]) {
+      SV.seen[i] = 1;
+      const st = Object.assign({}, STORY[i]), nw = newStock(before, SV.reached);
+      if (nw) st.text += `\n\nNeu bei Mara: ${nw}.`;
+      notes.push(st);
+    }
+  }
   saveGame();
-  if (!SV.seen[i] && MODE === 'story') { SV.seen[i] = 1; saveGame(); showStory(STORY[i], showShop); } else showShop();
+  showStories(notes, showShop);
 }
 function showShop() {
   GS = 'shop'; hideOverlays(); setPlayUI(false);
   $('shopTitle').textContent = SHELTERS[curShelter].name; $('shopTrader').textContent = TRADER[curShelter];
-  const [fc, fn] = secretCounts(); $('shopFound').textContent = `Gefunden: ${fc} von ${CHEST_SPOTS.length} Truhen · ${fn} von ${NOTES.length} Notizen von Opa`;
+  const [fc, fn] = secretCounts(); $('shopFound').textContent = `Nester zerstört: ${freedCount()} von 5 · Gefunden: ${fc} von ${CHEST_SPOTS.length} Truhen · ${fn} von ${NOTES.length} Notizen von Opa`;
   renderShop(); $('shop').hidden = false; $('shop').scrollTop = 0;
 }
 function gebiet(avail) { return `Ab Gebiet ${avail + 1}`; }
 function weaponCard(w) {
-  const lv = SV.weapons[w.id] || 0, avail = curShelter >= w.avail || lv > 0, show = Math.max(1, lv);
+  const lv = SV.weapons[w.id] || 0, avail = stockLv() >= w.avail || lv > 0, show = Math.max(1, lv);
   const cost = lv === 0 ? w.price : lv < 4 ? w.up[lv - 1] : 0;
   const dmg = Math.round(w.dmg * DMG_L[show - 1]) * (w.pellets > 1 ? 1 : 1);
   const rate = w.kind === 'flame' ? 'Dauerfeuer' : `${(w.rate * RATE_L[show - 1]).toFixed(1).replace('.', ',')} pro Sek.`;
@@ -272,7 +292,7 @@ function weaponCard(w) {
   return `<div class="item ${avail ? '' : 'locked'} ${SV.cur === w.id ? 'cur' : ''} lvb${lv}"><div class="top"><h3 class="l${lv}">${w.name}</h3><span class="cat">${w.cat}</span></div><p class="stat">${stat}</p><p class="sp ${lv >= 4 ? 'on' : ''}">Stufe 4: ${w.sp}</p><span class="pips">${pipsHTML(lv)}</span><div class="row">${btn}${eq}</div></div>`;
 }
 function abilCard(A, i) {
-  const lv = SV.abil[A.id] || 0, avail = curShelter >= A.avail || lv > 0, show = Math.max(1, lv);
+  const lv = SV.abil[A.id] || 0, avail = stockLv() >= A.avail || lv > 0, show = Math.max(1, lv);
   const cost = lv === 0 ? A.price : lv < 4 ? A.up[lv - 1] : 0;
   let btn;
   if (!avail) btn = `<button class="sbtn" disabled>${gebiet(A.avail)}</button>`;
@@ -286,7 +306,7 @@ function grenCard() {
   return `<div class="item"><div class="top"><h3>Granaten</h3><span class="cat">Wurfwaffe</span></div><p class="stat">Schaden ${fmt(GREN_DMG * HPM[curShelter])} im Umkreis · du hast ${SV.gren} von ${grenMax()}</p><p>Explodiert nach kurzer Zeit oder sobald sie ein Monster trifft.</p><div class="row"><button class="sbtn ${off ? 'poor' : 'buy'}" data-gren="1" ${off ? 'disabled' : ''}>${full ? 'Taschen voll' : `1 Granate · ${fmt(price)}`}</button></div></div>`;
 }
 function gearCard(g) {
-  const lv = gearLv(g.id), avail = curShelter >= g.avail || lv > 0, cost = lv < 4 ? g.cost[lv] : 0;
+  const lv = gearLv(g.id), avail = stockLv() >= g.avail || lv > 0, cost = lv < 4 ? g.cost[lv] : 0;
   let btn;
   if (!avail) btn = `<button class="sbtn" disabled>${gebiet(g.avail)}</button>`;
   else if (lv >= 4) btn = `<button class="sbtn" disabled>Höchste Stufe</button>`;
@@ -357,7 +377,7 @@ function applyBtns() { document.body.classList.toggle('bigbtn', OPT.btn === 'gro
 function applyGfx() {
   const dpr = window.devicePixelRatio || 1;
   pixelRatio = OPT.gfx === 'schnell' ? 0.75 : OPT.gfx === 'schoen' ? Math.min(dpr, 2) : Math.min(dpr, IS_TOUCH ? 1.25 : 1.5);
-  renderer.setPixelRatio(pixelRatio); camera.far = OPT.gfx === 'schnell' ? 60 : 90; resize();
+  renderer.setPixelRatio(pixelRatio); farMax = OPT.gfx === 'schnell' ? 60 : 90; resize();
   // Schatten vom Mond nur bei „Schön“
   const sh = OPT.gfx === 'schoen';
   if (renderer.shadowMap.enabled !== sh) {
@@ -374,7 +394,7 @@ function showMenu() {
   GS = 'menu'; MODE = 'story'; hideOverlays(); setPlayUI(false); resetInput(); AU.flame(false);
   const has = hasSave(), sv = lsGet(SAVE_KEY);
   $('btnEndless').hidden = !((sv && sv.won) || ACH.got.portal); $('btnContinue').hidden = !has; $('confirmNew').hidden = true; $('diffPick').hidden = true;
-  if (has) { const s = lsGet(SAVE_KEY); $('saveInfo').textContent = `Spielstand: ${SHELTERS[s.checkpoint || 0].name} (Gebiet ${(s.checkpoint || 0) + 1}) · ${fmt(s.money || 0)} Münzen · ${(DIFF[s.diff] || DIFF.normal).name}`; }
+  if (has) { const s = lsGet(SAVE_KEY), nf = s.freed ? Object.keys(s.freed).length : Math.min(5, s.checkpoint || 0); $('saveInfo').textContent = `Spielstand: ${SHELTERS[s.checkpoint || 0].name} (Gebiet ${(s.checkpoint || 0) + 1}) · ${nf} von 5 Nestern · ${fmt(s.money || 0)} Münzen · ${(DIFF[s.diff] || DIFF.normal).name}`; }
   else $('saveInfo').textContent = '';
   if (endlessBest()) $('saveInfo').textContent += ` · Endlos-Rekord: ${endlessBest()} Wellen`;
   $('verInfo').textContent = VERSION.startsWith('__') ? 'Entwicklungsversion' : `Version ${VERSION} vom ${BUILD_DATE}`;
@@ -387,7 +407,7 @@ function tryFullscreen() {
 }
 function resetWorld(cp) {
   clearMonsters(); clearProjs(); clearAcids(); clearPatches(); clearBarricades(); clearPickups(); clearDecals(); clearGrenades(); clearNums();
-  resetAreas(cp); $('bossbar').hidden = true; winT = -1; if (portal) portal.s = 1;
+  resetAreas(); $('bossbar').hidden = true; winT = -1; if (portal) portal.s = 1; roamT = 4;
   player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.maxHp = maxHpNow(); player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99; player.inv = 0; player.dashT = 0; player.dashCd = 0; player.fovKick = 0;
   abCd.fill(0); abOn.fill(0); lastArea = -1;
   const A = AREAS[curArea()]; scene.fog.color.setHex(A.fog); scene.background.setHex(A.fog); scene.fog.density = A.dens;
@@ -430,7 +450,12 @@ function showWin() {
 }
 
 // ---------- Hauptschleife ----------
-let baseFov = 72;
+let baseFov = 72, farMax = 90;
+// Sichtweite an den Nebel koppeln: Was im Nebel verschwindet, muss auch nicht gezeichnet werden
+function updateFar() {
+  const f = GS === 'menu' || curArea() === 5 ? farMax : Math.round(Math.min(farMax, clamp(2.6 / scene.fog.density, 48, 90))); // in der Stadt soll das Portal von weit her leuchten
+  if (Math.abs(camera.far - f) >= 2) { camera.far = f; camera.updateProjectionMatrix(); }
+}
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
   baseFov = w / h < 1 ? 86 : 72;
@@ -449,17 +474,21 @@ function frame(now) {
   if (GS === 'play') {
     SV.time += dt;
     updatePlayer(dt); placeCamera(dt);
-    if (MODE === 'endlos') updateEndless(dt); else updateWaves(dt);
+    if (MODE === 'endlos') updateEndless(dt); else { updateWaves(dt); updateRoam(dt); }
     updateMonsters(dt); updateEyeGlow(); updateProjs(dt); updateAcids(dt); updatePatches(dt); updateBarricades(dt);
     updatePickups(dt, clock); updateAbilities(dt); updateWeapon(dt, input.firing && winT < 0); updateVM(dt); updateTracers(dt); updateGrenades(dt); updateBars(); updateNums(dt); updateMaras(dt); updateSecrets(dt, clock);
     const a = curArea();
-    if (a !== lastArea) { if (lastArea >= 0 || true) showToast(`Gebiet ${a + 1}`, AREAS[a].name); lastArea = a; }
+    if (a !== lastArea) {
+      if (!areaSt.some(s => s.active)) showToast(`Gebiet ${a + 1}`, AREAS[a].name);
+      lastArea = a;
+      if (MODE === 'story' && !SV.visited[a]) { SV.visited[a] = 1; saveGame(); }
+    }
     const A = AREAS[a], tc = new T.Color(A.fog);
     scene.fog.color.lerp(tc, Math.min(1, dt * 0.8)); scene.background.copy(scene.fog.color); scene.fog.density = lerp(scene.fog.density, A.dens, Math.min(1, dt * 0.8));
     if (a === 4 && Math.random() < dt * 0.5) PG.emit(player.pos.x + rand(-12, 12), rand(0.5, 2.5), player.pos.z + rand(-14, 4), rand(-0.2, 0.2), rand(-0.1, 0.1), rand(-0.2, 0.2), rand(2, 4), 0.8, 0.9, 0.4, 0.06, 0, 0, 0, 0.8);
     if (a === 1 && Math.random() < dt * 4) PG.emit(player.pos.x + rand(-12, 12), rand(0.4, 2.2), player.pos.z + rand(-16, 6), rand(-0.3, 0.3), rand(-0.1, 0.2), rand(-0.3, 0.3), rand(2, 4), 0.75, 1, 0.45, 0.07, 0, 0, 0, 0.9);
     if (winT >= 0) { winT += dt; if (portal) portal.s = Math.max(0, 1 - winT / 2.5); if (winT > 4) showWin(); }
-    updateHUD();
+    updateHUD(); drawMini(dt);
   } else if (GS === 'dying') {
     dyingT += dt;
     camera.position.y = lerp(camera.position.y, 0.35, Math.min(1, dt * 3)); camera.rotation.z = lerp(camera.rotation.z, 0.5, Math.min(1, dt * 2));
@@ -474,14 +503,17 @@ function frame(now) {
     }
   } else if (GS === 'menu') {
     menuT += dt;
-    camera.position.set(Math.sin(menuT * 0.12) * 4, 2.2 + Math.sin(menuT * 0.3) * 0.2, -728);
-    camera.lookAt(0, 8.5, -777); camera.updateMatrixWorld(true);
+    camera.position.set(WX(5, Math.sin(menuT * 0.12) * 4), 2.2 + Math.sin(menuT * 0.3) * 0.2, WZ(5, -84));
+    camera.lookAt(WX(5, 0), 8.5, WZ(5, -127)); camera.updateMatrixWorld(true);
   }
   achTick(dt);
   if (AU.ctx) { MU.intense = MODE === 'endlos' ? EN.active : areaSt.some(s => s && s.active); setMusic(pickMusic()); }
   updateWorld(dt, clock, camera.position); updateAtmos(dt, clock); updateWeather(dt);
   if (moonLight.castShadow) { moonLight.target.position.set(camera.position.x, 0, camera.position.z - 6); moonLight.position.set(camera.position.x - 30, 50, camera.position.z + 14); }
-  if (moon) { moon.position.set(camera.position.x - 34, 30, camera.position.z - 66); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu'; }
+  updateFar();
+  const fk = camera.far * 0.85 / 80; // Mond und Himmel bleiben innerhalb der Sichtweite
+  if (moon) { moon.position.set(camera.position.x - 34 * fk, 30 * fk, camera.position.z - 66 * fk); moon.scale.setScalar(5 * fk); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu'; }
+  if (sky) sky.scale.setScalar(fk);
   PU.uFogD.value = scene.fog.density;
   PB.update(dt); PF.update(dt); PS.update(dt); PG.update(dt);
   for (const d of decals) { d.t += dt; if (d.t > 25) d.m.opacity = Math.max(0, 0.85 - (d.t - 25) * 0.1); }
@@ -491,7 +523,7 @@ function frame(now) {
 function pickMusic() {
   if (GS === 'menu') return 'menu';
   if (GS === 'shop' || GS === 'story' || GS === 'win') return 'safe';
-  if (GS !== 'play') return null;
+  if (GS !== 'play' && GS !== 'map') return null;
   if (barRef && barRef.state !== 'dead') return 'boss';
   return 'a' + curArea();
 }
@@ -499,7 +531,7 @@ function pickMusic() {
 // ---------- Start ----------
 function boot() {
   if (!HAS_THREE) return;
-  buildWorld(); buildViewModels(); resetAreas(0); applyBtns(); applyGfx(); showMenu();
+  buildWorld(); buildMapBase(); buildViewModels(); resetAreas(); applyBtns(); applyGfx(); showMenu();
   // Offline spielen: Service Worker nur auf der echten Seite (nicht im automatischen Test)
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !navigator.webdriver) navigator.serviceWorker.register('sw.js').catch(() => { });
   requestAnimationFrame(t => { last = t; frame(t); });

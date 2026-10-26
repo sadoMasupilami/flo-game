@@ -7,7 +7,7 @@ const areaSt = [];
 let shake = 0, bossRef = null, barRef = null, winT = -1;
 const _v = HAS_THREE ? new T.Vector3() : null;
 
-function curArea() { return clamp(Math.floor(-player.pos.z / AREA_LEN), 0, 5); }
+function curArea() { return areaAt(player.pos.x, player.pos.z); }
 function safeIdx() { for (let i = 0; i < SAFE.length; i++) { const s = SAFE[i]; if (Math.hypot(player.pos.x - s.x, player.pos.z - s.z) < s.r) return i; } return -1; }
 function angLerp(a, b, t) { const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * Math.min(1, t); }
 
@@ -25,8 +25,8 @@ function pushOut(p, r, s) {
   const d = Math.sqrt(d2); p.x = cx + dx / d * r; p.z = cz + dz / d * r; return true;
 }
 function resolveCircle(p, r, isMonster) {
-  p.x = clamp(p.x, -HALF_W + r, HALF_W - r); p.z = clamp(p.z, Z_MIN + r, Z_MAX - r);
-  for (const s of solids) if (!s.off) pushOut(p, r, s);
+  p.x = clamp(p.x, WORLD.x0 + r, WORLD.x1 - r); p.z = clamp(p.z, WORLD.z0 + r, WORLD.z1 - r);
+  for (const s of solidsIn(p.x - r, p.z - r, p.x + r, p.z + r)) if (!s.off) pushOut(p, r, s);
   let hitB = null;
   for (const b of barricades) if (pushOut(p, r, b)) hitB = b;
   if (isMonster && safeIdx() >= 0) {
@@ -35,8 +35,8 @@ function resolveCircle(p, r, isMonster) {
   return hitB;
 }
 function blockedAt(x, z, r) {
-  if (Math.abs(x) > HALF_W - r) return true;
-  for (const s of solids) if (!s.off && x + r > s.x0 && x - r < s.x1 && z + r > s.z0 && z - r < s.z1) return true;
+  if (!inWorld(x, z, r)) return true;
+  for (const s of solidsIn(x - r, z - r, x + r, z + r)) if (!s.off && x + r > s.x0 && x - r < s.x1 && z + r > s.z0 && z - r < s.z1) return true;
   return false;
 }
 
@@ -60,7 +60,7 @@ function spawnMonster(type, x, z, opt) {
     spd: def.spd * (1 + a * 0.04) * (mini ? 0.8 : elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
     cd: rand(0.3, 1), state: 'rise', t: 0, phase: rand(0, TAU), burn: 0, burnDps: 0, flash: 0, wind: 0, windMax: 0.4, strike: 0,
     gold: Math.round(def.gold * GOLDM[a] * (mini ? 10 : elite ? 6 : 1) * GOLD * diff().gold), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
-    wa: opt.wa == null ? -1 : opt.wa, wj: opt.wj == null ? -1 : opt.wj, hits: HIT[type], blocked: null, target: null,
+    wa: opt.wa == null ? -1 : opt.wa, wj: opt.wj == null ? -1 : opt.wj, roam: !!opt.roam, hits: HIT[type], blocked: null, target: null,
     atkT: 2, sumT: 8, atk: '', deadT: 0, kvx: 0, kvz: 0, vy: 0, flinch: 0, spin: 0, numAcc: 0, numHead: false, numT: 0,
   };
   m.maxHp = m.hp;
@@ -200,7 +200,7 @@ function updateMonsters(dt) {
       m.deadT += dt;
       // weggeschleuderte Körper fliegen weiter
       if (m.deadT < 2) {
-        gp.x = clamp(gp.x + m.kvx * dt, -HALF_W, HALF_W); gp.z += m.kvz * dt; const f = Math.max(0, 1 - dt * 3); m.kvx *= f; m.kvz *= f;
+        gp.x = clampX(gp.x + m.kvx * dt); gp.z = clampZ(gp.z + m.kvz * dt); const f = Math.max(0, 1 - dt * 3); m.kvx *= f; m.kvz *= f;
         if (gp.y > 0 || m.vy > 0) { m.vy -= 22 * dt; gp.y = Math.max(0, gp.y + m.vy * dt); g.rotation.z += m.spin * dt; }
       }
       g.rotation.x = -Math.PI / 2 * Math.min(1, m.deadT / (m.boss ? 1.2 : 0.45));
@@ -271,15 +271,18 @@ function updateMonsters(dt) {
     // nicht in den Spieler hineinlaufen
     { const qx = gp.x - px, qz = gp.z - pz, d = Math.hypot(qx, qz), lim = m.r + player.r; if (d < lim && d > 1e-4) { gp.x = px + qx / d * lim; gp.z = pz + qz / d * lim; } }
     m.blocked = resolveCircle(gp, m.r, true);
-    if (m.boss) { gp.z = clamp(gp.z, -776, -712); }
+    if (m.boss && MODE === 'story') { gp.x = clamp(gp.x, WX(5, -15), WX(5, 15)); gp.z = clamp(gp.z, WZ(5, -126), WZ(5, -79)); } // die Königin bleibt auf ihrem Platz
     // festgefahren? kurz seitlich ausweichen
     if (moving && m.detour <= 0) {
       const moved = Math.hypot(gp.x - ox, gp.z - oz);
       if (moved < sp * dt * 0.25 && !m.blocked) { m.stuck += dt; if (m.stuck > 0.8) { m.stuck = 0; m.detour = rand(0.6, 1.2); const s = Math.random() < 0.5 ? -1 : 1; m.dx = -nz * s; m.dz = nx * s; } }
       else m.stuck = 0;
     }
-    // zu weit weg: näher heranholen
-    if (dist > 60 && !m.boss) { const p = spawnPos(curArea()); gp.x = p[0]; gp.z = p[1]; }
+    // zu weit weg: Streuner verschwinden, Monster aus einer Welle kommen zurück ans Nest
+    if (dist > 60 && !m.boss) {
+      const wave = m.wa !== -1, p = m.roam ? null : aroundPlayer(14, 24);
+      if (!p) { if (!wave) { removeMonster(i); continue; } } else { gp.x = p[0]; gp.z = p[1]; }
+    }
     g.rotation.y = angLerp(g.rotation.y, Math.atan2(nx, nz), dt * (m.type === 'schild' ? 1.2 : 8)); // Schildträger drehen sich langsam
     g.rotation.x = -0.45 * m.flinch;
     animMonster(m, dt, moving);
@@ -314,7 +317,7 @@ function updateBoss(m, dt, dist, nx, nz) {
   if (m.sumT <= 0 && aliveCount() < 12) {
     m.sumT = enr ? 10 : 14;
     const n = enr ? 4 : 3, gp = m.g.position;
-    for (let i = 0; i < n; i++) { const a = rand(0, TAU); spawnMonster(Math.random() < 0.5 ? 'kriecher' : 'schreier', clamp(gp.x + Math.cos(a) * 4, -16, 16), clamp(gp.z + Math.sin(a) * 4 + 3, -774, -712), { area: 5 }); }
+    for (let i = 0; i < n; i++) { const a = rand(0, TAU), x = clampX(gp.x + Math.cos(a) * 4, 2), z = clampZ(gp.z + Math.sin(a) * 4 + 3, 2); if (!blockedAt(x, z, 0.6)) spawnMonster(Math.random() < 0.5 ? 'kriecher' : 'schreier', x, z, { area: 5 }); }
     showMsg('Die Königin ruft ihre Brut');
   }
   if (dist > m.range * 0.7) return [nx, nz, sp];
@@ -329,13 +332,14 @@ function bossDefeated(m) {
   showMsg('Die Monsterkönigin ist besiegt!');
 }
 
-// ---------- Wellen ----------
-function triggerZ(a, j) { return ZS(a) - 24 - j * 32; }
-function resetAreas(cp) {
-  for (let a = 0; a < 6; a++) {
-    areaSt[a] = { wave: 0, active: false, queue: [], spawnT: 0, done: a < cp, boss: false };
-    if (a < 5) setBarrier(a, a < cp, true);
-  }
+// ---------- Monsternester und ihre Wellen ----------
+// Kommt man einem Nest nahe, kriechen drei Wellen heraus, in der dritten der Anführer des Gebiets.
+// Im Stadtzentrum beginnt der Kampf erst hinter der Barriere, und am Ende kommt die Königin.
+function freedCount() { let n = 0; for (let a = 0; a < 5; a++) if (SV.freed[a]) n++; return n; }
+function resetAreas() {
+  for (let a = 0; a < 6; a++) areaSt[a] = { wave: 0, active: false, queue: [], spawnT: 0, done: !!SV.freed[a], boss: false, pause: 0 };
+  setBarrier(MODE === 'endlos' || freedCount() >= 5, true);
+  syncNests();
 }
 function weightedType(a) {
   const types = AREA_TYPES[a]; let sum = 0; for (const t of types) sum += MT[t].w;
@@ -345,7 +349,7 @@ function startWave(a) {
   const st = areaSt[a], j = st.wave; st.active = true; st.spawnT = 0.4;
   if (a === 5 && j === 2) {
     st.boss = true; st.queue = [];
-    const b = spawnMonster('koenigin', 0, -770, { area: 5, wa: 5, wj: 2 });
+    spawnMonster('koenigin', WX(5, 0), WZ(5, -120), { area: 5, wa: 5, wj: 2 });
     $('bossName').textContent = MT.koenigin.name; $('bossbar').hidden = false;
     showToast('Endgegner', 'Die Monsterkönigin'); shake = 0.6;
     return;
@@ -357,25 +361,49 @@ function startWave(a) {
   if (j === 2 && a < 5) q.push({ t: MINIS[a].type, mini: a }); // Zwischenboss kommt zum Schluss
   st.queue = q;
   AU.play('wave', 0.5);
-  showMsg(`Welle ${j + 1} – sie kommen!`);
+  if (j === 0) showToast(a === 5 ? 'Das Portal' : `Monsternest · ${AREAS[a].name}`, 'Sie kommen!');
+  showMsg(`Welle ${j + 1} von 3`);
 }
+// Monster kriechen rund um das Nest aus dem Boden, nicht direkt neben dem Spieler
 function spawnPos(a) {
-  const zTop = ZS(a) - 14, zBot = a === 5 ? -770 : ZS(a) - 114;
-  for (let t = 0; t < 14; t++) {
-    const ang = Math.random() < 0.72 ? rand(-1.1, 1.1) : rand(0, TAU), d = rand(14, 24);
-    const x = clamp(player.pos.x + Math.sin(ang) * d, -16, 16), z = clamp(player.pos.z - Math.cos(ang) * d, zBot, zTop);
-    if (Math.hypot(x - player.pos.x, z - player.pos.z) < 9) continue;
+  const n = nests[a];
+  for (let t = 0; t < 16; t++) {
+    const ang = rand(0, TAU), d = rand(3.5, 15), x = n.x + Math.cos(ang) * d, z = n.z + Math.sin(ang) * d;
+    if (Math.hypot(x - player.pos.x, z - player.pos.z) < 8) continue;
+    if (a === 5 && !inPlaza(x, z)) continue;
     if (!blockedAt(x, z, 1) && !inSafe(x, z, 3)) return [x, z];
   }
-  return [rand(-12, 12), clamp(player.pos.z - 20, zBot, zTop)];
+  return [n.x + (Math.random() < 0.5 ? -9 : 9), n.z];
 }
 function waveRemaining(a, j) { let n = areaSt[a].queue.length; for (const m of monsters) if (m.state !== 'dead' && m.wa === a && m.wj === j) n++; return n; }
+function nestNear(a) {
+  if (safeIdx() >= 0) return false;
+  if (a === 5) return barrier.open && inPlaza(player.pos.x, player.pos.z);
+  return Math.hypot(player.pos.x - nests[a].x, player.pos.z - nests[a].z) < NEST_R;
+}
+// weggelaufen: Die Welle zieht sich ins Nest zurück und beginnt beim nächsten Mal von vorn
+function abortWave(a) {
+  const st = areaSt[a]; st.active = false; st.queue = []; st.pause = 2;
+  for (let i = monsters.length - 1; i >= 0; i--) { const m = monsters[i]; if (m.wa === a && m.state !== 'dead') { smokePuff(m.g.position.x, 0.5, m.g.position.z, 6, 0.15); if (m === barRef) { barRef = null; $('bossbar').hidden = true; } removeMonster(i); } }
+  showMsg('Die Monster ziehen sich ins Nest zurück');
+}
+function freeNest(a) {
+  const st = areaSt[a]; st.done = true; SV.freed[a] = 1; saveGame();
+  burstNest(nests[a]); AU.play('clear'); shake = Math.max(shake, 0.3);
+  const n = freedCount();
+  if (n >= 5) { setBarrier(true); AU.play('boom', 0.2); showToast('Alle Nester zerstört', 'Die Barriere ist gefallen'); showMsg('Auf zum Portal!'); }
+  else { showToast(`${AREAS[a].name} ist befreit`, 'Nest zerstört'); showMsg(`${n} von 5 Nestern zerstört`); }
+}
 function updateWaves(dt) {
-  const pa = curArea();
   for (let a = 0; a < 6; a++) {
     const st = areaSt[a]; if (st.done) continue;
-    if (!st.active) { if (a === pa && player.pos.z < triggerZ(a, st.wave) && safeIdx() < 0) startWave(a); continue; }
+    if (!st.active) {
+      if (st.pause > 0) st.pause -= dt;
+      else if (nestNear(a)) startWave(a);
+      continue;
+    }
     if (st.boss) continue;
+    if (a < 5 && Math.hypot(player.pos.x - nests[a].x, player.pos.z - nests[a].z) > 70) { abortWave(a); continue; }
     if (st.queue.length) {
       st.spawnT -= dt;
       if (st.spawnT <= 0 && aliveCount() < 10 + a * 1.5) {
@@ -385,10 +413,44 @@ function updateWaves(dt) {
       }
     } else if (waveRemaining(a, st.wave) === 0) {
       st.active = false; st.wave++;
-      if (st.wave >= 3 && a < 5) { st.done = true; setBarrier(a, true); AU.play('clear'); showMsg('Der Weg ist frei'); }
-      else { AU.play('clear', 0.3); showMsg('Welle geschafft'); }
+      if (st.wave >= 3 && a < 5) freeNest(a);
+      else { st.pause = 3; AU.play('clear', 0.3); showMsg('Welle geschafft'); }
     }
   }
+}
+
+// ---------- Streuner: Monster, die durch die offene Welt ziehen ----------
+// Je gefährlicher das Gebiet, desto mehr. In befreiten Gebieten sind es weniger.
+let roamT = 4;
+// freier Platz in einem Ring um den Spieler (nie quer durch die geschlossene Barriere)
+function aroundPlayer(d0, d1) {
+  const inside = inPlaza(player.pos.x, player.pos.z);
+  for (let t = 0; t < 12; t++) {
+    const ang = rand(0, TAU), d = rand(d0, d1), x = player.pos.x + Math.sin(ang) * d, z = player.pos.z + Math.cos(ang) * d;
+    if (!inWorld(x, z, 3) || inSafe(x, z, 3) || blockedAt(x, z, 1)) continue;
+    if (barrier && !barrier.open && inPlaza(x, z) !== inside) continue;
+    return [x, z];
+  }
+  return null;
+}
+function roamCap(a) { return SV.freed[a] ? 1 + (a >> 1) : 3 + (a >> 1); }
+function roamPos() {
+  for (let t = 0; t < 12; t++) {
+    const ang = rand(0, TAU), d = rand(20, 32), x = player.pos.x + Math.sin(ang) * d, z = player.pos.z + Math.cos(ang) * d;
+    if (!inWorld(x, z, 3) || inPlaza(x, z) || inSafe(x, z, 12) || blockedAt(x, z, 1)) continue;
+    return [x, z];
+  }
+  return null;
+}
+function updateRoam(dt) {
+  roamT -= dt; if (roamT > 0) return; roamT = rand(2.5, 5);
+  if (safeIdx() >= 0 || inSafe(player.pos.x, player.pos.z, 6)) return;
+  let n = 0; for (const m of monsters) if (m.roam && m.state !== 'dead') n++;
+  const busy = areaSt.some(s => s.active);
+  if (n >= (busy ? 1 : roamCap(curArea())) || aliveCount() >= 12) return;
+  const p = roamPos(); if (!p) return;
+  const a = areaAt(p[0], p[1]);
+  spawnGroup(weightedType(a), p[0], p[1], { area: a, roam: true, elite: Math.random() < 0.04 });
 }
 
 // ---------- Lebensleisten über den Monstern ----------
@@ -429,7 +491,7 @@ function updateMini(m, dt, dist, nx, nz) {
       }
       else if (m.atk === 'volley') { for (let i = 0; i < 5; i++) spitAcid(m, 0.8, (i - 2) * 0.17); }
       else if (m.atk === 'brood') {
-        for (let i = 0; i < 3; i++) { const a = rand(0, TAU); spawnMonster('kriecher', clamp(gp.x + Math.cos(a) * 2.5, -16, 16), gp.z + Math.sin(a) * 2.5, { area: m.a }); }
+        for (let i = 0; i < 3; i++) { const a = rand(0, TAU); spawnMonster('kriecher', clampX(gp.x + Math.cos(a) * 2.5, 2), clampZ(gp.z + Math.sin(a) * 2.5, 2), { area: m.a }); }
         showMsg('Die Spinnenmutter ruft ihre Brut');
       }
       else strikeAt(m, dist);
@@ -480,7 +542,7 @@ function updateEyeGlow() {
 // Krähen kommen als Schwarm
 function spawnGroup(type, x, z, opt) {
   if (type !== 'kraehe') return spawnMonster(type, x, z, opt);
-  for (let i = 0; i < 4; i++) spawnMonster('kraehe', clamp(x + rand(-2, 2), -16, 16), z + rand(-2, 2), opt);
+  for (let i = 0; i < 4; i++) spawnMonster('kraehe', clampX(x + rand(-2, 2), 2), clampZ(z + rand(-2, 2), 2), opt);
   AU.play('caw', 0.2);
 }
 function updateFlyer(m, dt, dist, nx, nz) {
@@ -515,7 +577,7 @@ function burstPlatzer(m) {
 }
 function blinkShadow(m) {
   const gp = m.g.position, s = Math.random() < 0.5 ? -1 : 1, dx = gp.x - player.pos.x, dz = gp.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
-  const x = clamp(gp.x + (-dz / d) * s * 6, -16, 16), z = gp.z + (dx / d) * s * 6;
+  const x = gp.x + (-dz / d) * s * 6, z = gp.z + (dx / d) * s * 6;
   if (blockedAt(x, z, 0.6) || inSafe(x, z, 2)) return;
   smokePuff(gp.x, 0.8, gp.z, 8, 0.05); gp.x = x; gp.z = z; smokePuff(x, 0.8, z, 8, 0.05);
   m.reveal = 0;

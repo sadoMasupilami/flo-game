@@ -21,6 +21,7 @@ const FILES = [
   'js/erfolge.js',
   'js/geheimnisse.js',
   'js/endlos.js',
+  'js/karte.js',
   'js/main.js',
 ];
 

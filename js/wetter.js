@@ -30,10 +30,10 @@ function weatherNow() {
 function strike() {
   lightningT = 0.55;
   // gezackter Blitz irgendwo vor dem Spieler am Himmel
-  const c = camera.position, a = player.yaw + rand(-0.9, 0.9), d = rand(45, 70);
-  let x = c.x - Math.sin(a) * d, z = c.z - Math.cos(a) * d, y = 60;
+  const c = camera.position, k = camera.far / 90, a = player.yaw + rand(-0.9, 0.9), d = rand(45, 70) * k;
+  let x = c.x - Math.sin(a) * d, z = c.z - Math.cos(a) * d, y = 60 * k;
   const p = bolt.geometry.attributes.position;
-  for (let i = 0; i < 24; i++) { p.setXYZ(i, x, y, z); x += rand(-3, 3); z += rand(-3, 3); y -= 2.4; }
+  for (let i = 0; i < 24; i++) { p.setXYZ(i, x, y, z); x += rand(-3, 3) * k; z += rand(-3, 3) * k; y -= 2.4 * k; }
   p.needsUpdate = true; boltT = 0.25;
   $('flash').style.opacity = 0.45;
   thunders.push(rand(0.4, 2.2));
