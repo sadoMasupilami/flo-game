@@ -1,8 +1,8 @@
 // Portalnacht – Waffen, Geschosse, Fähigkeiten, Barrikaden
 'use strict';
-const barricades = [], projs = [], acids = [], patches = [], pickups = [], decals = [], tracers = [];
+const barricades = [], projs = [], acids = [], patches = [], pickups = [], decals = [], tracers = [], grenades = [];
 const abCd = [0, 0, 0, 0], abOn = [0, 0, 0, 0];
-let fireCd = 0, vmKick = 0, vmSwing = 0, swapT = 0, muzzleT = 0, patchCd = 0, flameOn = false;
+let fireCd = 0, vmKick = 0, vmSwing = 0, swapT = 0, muzzleT = 0, patchCd = 0, flameOn = false, grenCd = 0, tracerCol = 0xffd27a;
 const vmModels = {};
 let vm = null;
 const _o = HAS_THREE ? new T.Vector3() : null, _d = HAS_THREE ? new T.Vector3() : null, _c = HAS_THREE ? new T.Vector3() : null, _m = HAS_THREE ? new T.Vector3() : null;
@@ -76,17 +76,23 @@ function updatePatches(dt) {
 function clearPatches() { for (const p of patches) { scene.remove(p.mesh); p.m.dispose(); } patches.length = 0; }
 
 // ---------- Erste-Hilfe-Kästen ----------
-function spawnPickup(x, z) {
+function spawnPickup(x, z, kind) {
+  kind = kind || 'med';
   const g = new T.Group(); g.position.set(x, 0.5, z);
-  part(g, G.box, mat(0xd8d8d0, { e: 0x303030 }), 0, 0, 0, 0.45, 0.32, 0.45);
-  const red = mat(0xff2a2a, { basic: true }); part(g, G.box, red, 0, 0.17, 0, 0.3, 0.02, 0.09); part(g, G.box, red, 0, 0.17, 0, 0.09, 0.02, 0.3);
-  scene.add(g); pickups.push({ g, x, z, t: 30 });
+  if (kind === 'gren') { part(g, G.sph, mat(0x3a4a2a, { e: 0x1a2a10, sh: 40 }), 0, 0, 0, 0.3, 0.36, 0.3); part(g, G.box, mat(0x8a8a80), 0, 0.2, 0, 0.1, 0.08, 0.1); }
+  else {
+    part(g, G.box, mat(0xd8d8d0, { e: 0x303030 }), 0, 0, 0, 0.45, 0.32, 0.45);
+    const red = mat(0xff2a2a, { basic: true }); part(g, G.box, red, 0, 0.17, 0, 0.3, 0.02, 0.09); part(g, G.box, red, 0, 0.17, 0, 0.09, 0.02, 0.3);
+  }
+  scene.add(g); pickups.push({ g, x, z, t: 30, kind });
 }
 function updatePickups(dt, t) {
   for (let i = pickups.length - 1; i >= 0; i--) {
     const p = pickups[i]; p.t -= dt; p.g.rotation.y += dt * 1.6; p.g.position.y = 0.45 + Math.sin(t * 3 + i) * 0.08;
-    if (Math.random() < dt * 4) PG.emit(p.x, 0.6, p.z, 0, 0.6, 0, 0.8, 0.9, 0.2, 0.2, 0.15, 0, 0, 0, 0.7);
-    if (Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 1.3 && player.hp < player.maxHp) {
+    const gr = p.kind === 'gren', near = Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 1.3;
+    if (Math.random() < dt * 4) PG.emit(p.x, 0.6, p.z, 0, 0.6, 0, 0.8, gr ? 0.5 : 0.9, gr ? 0.9 : 0.2, 0.2, 0.15, 0, 0, 0, 0.7);
+    if (near && gr && SV.gren < GREN_MAX) { SV.gren++; AU.play('coin'); showMsg('+1 Granate'); scene.remove(p.g); pickups.splice(i, 1); continue; }
+    if (near && !gr && player.hp < player.maxHp) {
       player.hp = Math.min(player.maxHp, player.hp + 22); healFx(); AU.play('heal'); showMsg('+22 Leben');
       scene.remove(p.g); pickups.splice(i, 1); continue;
     }
@@ -138,11 +144,11 @@ function tracer(a, b, col) {
 function updateTracers(dt) { for (let i = tracers.length - 1; i >= 0; i--) { const tr = tracers[i]; tr.t -= dt; tr.l.material.opacity = Math.max(0, tr.t / 0.06); if (tr.t <= 0) { scene.remove(tr.l); tr.l.geometry.dispose(); tr.l.material.dispose(); tracers.splice(i, 1); } } }
 function muzzleWorld(out) { const u = vm && vm.userData.muzzle; out.copy(u || new T.Vector3(0, 0, -0.6)); vm.localToWorld(out); return out; }
 function flashMuzzle(strength) { muzzleLight.intensity = 2.6 * (strength || 1); muzzleT = 0.05; muzzleWorld(_m); PG.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.05, 1, 0.75, 0.35, 0.35 * (strength || 1), 0, 0, 0, 1); }
-function explode(p, dmg, R) {
+function explode(p, dmg, R, patch) {
   boomLight.position.copy(p); boomLight.position.y = Math.max(1, p.y); boomLight.intensity = 6;
   for (let i = 0; i < 60; i++) PF.emit(p.x, p.y + 0.3, p.z, rand(-5, 5), rand(1, 6), rand(-5, 5), rand(0.3, 0.8), 1, rand(0.4, 0.7), 0.15, rand(0.4, 0.9), 2, -0.4, 2, 1);
   smokePuff(p.x, p.y, p.z, 22, 0.2); sparks(p.x, p.y + 0.3, p.z, 30, 1, 0.8, 0.4);
-  addDecal(p.x, p.z, R * 0.9, 0x0e0c0b); addPatch(p.x, p.z, 1.6, 2.5);
+  addDecal(p.x, p.z, R * 0.9, 0x0e0c0b); if (patch !== false) addPatch(p.x, p.z, 1.6, 2.5);
   AU.play('boom', 0.05); const dd = p.distanceTo(camera.position); shake = Math.max(shake, clamp(1 - dd / 30, 0, 0.8));
   for (const m of monsters.slice()) {
     if (m.state === 'dead') continue;
@@ -236,6 +242,7 @@ function clearAcids() { for (const a of acids) scene.remove(a.mesh); acids.lengt
 function curWeapon() { return W_BY[SV.cur] || W_BY.holz; }
 function doFire(w, lv) {
   const dmg = w.dmg * DMG_L[lv - 1] * ampMult();
+  tracerCol = lv > 1 ? LV_HEX[lv - 1] : 0xffd27a;
   camera.getWorldDirection(_d);
   const o = camera.position;
   if (w.kind === 'melee') {
@@ -291,7 +298,7 @@ function hitscan(o, d, dmg, range) {
   const hp = o.clone().addScaledVector(d, best);
   if (bm) damageMonster(bm, dmg * (head ? 1.6 : 1), hp, head);
   else if (what === 2) { sparks(hp.x, hp.y + 0.02, hp.z, 3, 1, 0.8, 0.5); if (brandOn() && patchCd <= 0) { addPatch(hp.x, hp.z, 1.2, 3); patchCd = 0.25; } }
-  tracer(muzzleWorld(_m), hp);
+  tracer(muzzleWorld(_m), hp, tracerCol);
 }
 function updateWeapon(dt, firing) {
   fireCd -= dt; patchCd -= dt;
@@ -322,7 +329,11 @@ function vmMat(c, sh) { return new T.MeshPhongMaterial({ color: c, emissive: c, 
 function buildViewModels() {
   vm = new T.Group(); camera.add(vm);
   const wood = vmMat(0x8a6038), dwood = vmMat(0x4a3220), steel = vmMat(0xb8bcc4, 70), dsteel = vmMat(0x3a3d42, 40), black = vmMat(0x1c1d20, 30), olive = vmMat(0x4a5236), leather = vmMat(0x5a3a26), str = vmMat(0xd8d0c0), red = vmMat(0x8a1a14);
-  const add = (id, base, muzzle, build) => { const g = new T.Group(); build(g); g.visible = false; g.userData = { base, muzzle }; vm.add(g); vmModels[id] = g; };
+  const add = (id, base, muzzle, build) => {
+    const g = new T.Group(); build(g); g.visible = false; g.userData = { base, muzzle }; vm.add(g); vmModels[id] = g;
+    // eigene Materialien je Waffe, damit sie in ihrer Stufen-Farbe leuchten kann
+    g.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); if (o.material.emissive) { o.userData.e0 = o.material.emissive.getHex(); o.userData.ei0 = o.material.emissiveIntensity; } } });
+  };
   const cylZ = (g, m, x, y, z, r, l) => { part(g, G.cyl, m, x, y, z, r * 2, l, r * 2).rotation.x = Math.PI / 2; };
   const melee = { p: [0.44, -0.5, -0.8], r: [-0.95, 0.25, -0.55] }, gun = { p: [0.24, -0.26, -0.48], r: [0, 0.04, 0] };
   add('holz', melee, null, g => { part(g, G.box, dwood, 0, 0, 0, 0.05, 0.18, 0.05); part(g, G.box, dwood, 0, 0.1, 0, 0.2, 0.035, 0.06); part(g, G.box, wood, 0, 0.47, 0, 0.07, 0.7, 0.025); });
@@ -343,6 +354,7 @@ function buildViewModels() {
 }
 function equipVM(id) {
   for (const k in vmModels) vmModels[k].visible = k === id;
+  tintVM(id);
   swapT = 0.25; fireCd = Math.max(fireCd, 0.15);
 }
 function updateVM(dt) {
@@ -355,3 +367,42 @@ function updateVM(dt) {
   if (w.kind === 'melee' && vmSwing > 0) { const t = 1 - vmSwing, s = Math.sin(t * Math.PI); rz += (t * 2.4 - 0.6) * s * 1.4; rx -= s * 0.9; px -= s * 0.28; py += s * 0.05; }
   m.position.set(px, py, pz); m.rotation.set(rx, ry, rz);
 }
+function tintVM(id) {
+  const g = vmModels[id]; if (!g) return;
+  const lv = SV.weapons[id] || 1;
+  g.traverse(o => {
+    if (!o.isMesh || !o.material.emissive) return;
+    if (lv > 1) { o.material.emissive.setHex(LV_HEX[lv - 1]); o.material.emissiveIntensity = 0.5; }
+    else { o.material.emissive.setHex(o.userData.e0); o.material.emissiveIntensity = o.userData.ei0; }
+  });
+}
+
+// ---------- Granaten ----------
+function throwGrenade() {
+  if (GS !== 'play' || player.dead || grenCd > 0) return;
+  if (!SV.gren) { showMsg('Keine Granaten mehr. Mara verkauft welche.'); AU.play('deny', 0.3); return; }
+  SV.gren--; grenCd = 0.7;
+  camera.getWorldDirection(_d);
+  const vel = _d.clone(); vel.y += 0.3; vel.normalize().multiplyScalar(15);
+  const mesh = new T.Group();
+  part(mesh, G.sph, mat(0x3a4a2a, { e: 0x101808, sh: 40 }), 0, 0, 0, 0.2, 0.24, 0.2);
+  const led = part(mesh, G.sphLo, mat(0xff2020, { basic: true, fog: false }), 0, 0.12, 0, 0.06, 0.06, 0.06);
+  mesh.position.copy(camera.position).addScaledVector(_d, 0.5); mesh.position.y -= 0.2;
+  scene.add(mesh);
+  grenades.push({ mesh, led, vel, t: 1.8, dmg: GREN_DMG * HPM[curArea()] * ampMult() });
+  vmKick = 0.5; AU.play('throw');
+}
+function updateGrenades(dt) {
+  grenCd = Math.max(0, grenCd - dt);
+  for (let i = grenades.length - 1; i >= 0; i--) {
+    const g = grenades[i], p = g.mesh.position, ox = p.x, oz = p.z;
+    g.t -= dt; g.vel.y -= 14 * dt;
+    p.addScaledVector(g.vel, dt);
+    if (p.y < 0.12) { p.y = 0.12; if (g.vel.y < 0) { if (g.vel.y < -2) AU.play('tick', 0.08); g.vel.y *= -0.35; g.vel.x *= 0.6; g.vel.z *= 0.6; } }
+    for (const s of solids) if (!s.off && inBox(p, s)) { p.x = ox; p.z = oz; g.vel.x *= -0.4; g.vel.z *= -0.4; break; }
+    for (const m of monsters) if (m.state !== 'dead' && Math.hypot(m.g.position.x - p.x, m.g.position.z - p.z) < m.r + 0.3 && p.y < (BAR_TOP[m.type] || 2) * m.sc) { g.t = Math.min(g.t, 0.05); break; }
+    g.mesh.rotation.x += dt * 8; g.led.visible = Math.sin(g.t * (g.t < 0.6 ? 40 : 14)) > 0;
+    if (g.t <= 0) { explode(p.clone(), g.dmg, GREN_R, brandOn()); scene.remove(g.mesh); grenades.splice(i, 1); }
+  }
+}
+function clearGrenades() { for (const g of grenades) scene.remove(g.mesh); grenades.length = 0; }

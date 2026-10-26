@@ -17,6 +17,10 @@
   --bloodhi:#ff4a57;
   --lamp:#f0ae4e;
   --heal:#74d68e;
+  --lv1:#d8cfc0;
+  --lv2:#4d8dff;
+  --lv3:#b46bff;
+  --lv4:#ff3b4a;
   --f-title:'Creepster', Impact, 'Arial Black', fantasy;
   --f-ui:'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --f-note:'Special Elite', 'Courier New', ui-monospace, monospace;
@@ -49,7 +53,13 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 .wpn b{display:block;font:700 18px/1 var(--f-ui);letter-spacing:.02em}
 .pips{display:inline-flex;gap:3px;margin-top:5px}
 .pips i{width:12px;height:4px;background:rgba(236,226,210,.2)}
-.pips i.on{background:var(--lamp)}
+.pips i.on{background:var(--lv1)}
+.pips i.on.l2{background:var(--lv2)}
+.pips i.on.l3{background:var(--lv3)}
+.pips i.on.l4{background:var(--lv4)}
+.l2{color:var(--lv2)}
+.l3{color:var(--lv3)}
+.l4{color:var(--lv4)}
 #bossbar{position:absolute;left:50%;top:calc(var(--st) + 70px);transform:translateX(-50%);width:min(64vw,520px);text-align:center}
 #bossbar .bn{font:400 22px/1 var(--f-title);color:#d58bff;letter-spacing:.04em;text-shadow:0 0 12px rgba(160,60,255,.6)}
 #bossbar .bb{height:10px;margin-top:6px;background:rgba(0,0,0,.6);border:1px solid rgba(200,120,255,.4)}
@@ -95,7 +105,13 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 .ab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;position:relative}
 .ab .cd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(0,0,0,.75) calc(var(--p,0) * 1turn),transparent 0)}
 .ab.on{border-color:var(--lamp);box-shadow:0 0 16px rgba(240,174,78,.55)}
-.ab em{position:absolute;right:-4px;bottom:-3px;font:700 11px/1 var(--f-ui);font-style:normal;background:var(--blood);padding:2px 5px}
+.ab em,#gren em{position:absolute;right:-4px;bottom:-3px;font:700 11px/1 var(--f-ui);font-style:normal;background:#4a4440;color:var(--ink);padding:2px 5px}
+.ab em.l2{background:var(--lv2);color:#fff}
+.ab em.l3{background:var(--lv3);color:#fff}
+.ab em.l4{background:var(--lv4);color:#fff}
+#gren{right:calc(var(--gr) + 186px);bottom:calc(var(--sb) + 18px);width:58px;height:58px}
+#gren em{background:#3a4a2a}
+#gren.empty{opacity:.45}
 .ab .k{position:absolute;left:-2px;top:-4px;font:600 10px var(--f-ui);color:var(--dim)}
 #enter{position:absolute;left:50%;bottom:calc(var(--sb) + 26px);transform:translateX(-50%);border:1.5px solid var(--lamp);background:rgba(60,36,8,.82);padding:12px 20px;font:700 17px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:#ffe2b0;white-space:nowrap;box-shadow:0 0 22px rgba(240,174,78,.35)}
 @media (pointer:fine){#joyhint{display:none}.ab .k{display:block}}
@@ -136,6 +152,9 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 .item{background:var(--card);border:1px solid var(--line);padding:12px;display:grid;gap:7px;align-content:start;min-width:0}
 .item.locked{opacity:.5}
 .item.cur{border-color:rgba(240,174,78,.6)}
+.item.lvb2{border-color:rgba(77,141,255,.6)}
+.item.lvb3{border-color:rgba(180,107,255,.6)}
+.item.lvb4{border-color:rgba(255,59,74,.65)}
 .item .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .item h3{margin:0;font:700 21px/1.05 var(--f-ui)}
 .item .cat{font:600 11px var(--f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
@@ -195,6 +214,7 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
     <button class="ab" data-ab="2" aria-label="Verbrenner" hidden><i class="cd"></i><svg viewBox="0 0 24 24"><path d="M12 3c1 4 5 5.5 5 10.5a5 5 0 0 1-10 0c0-3 2-4.5 2.5-7 1 1.2 2 2.5 2.2 4.2C12.5 8.5 12.8 6 12 3z"/></svg><em>1</em><span class="k">3</span></button>
     <button class="ab" data-ab="3" aria-label="Heiler" hidden><i class="cd"></i><svg viewBox="0 0 24 24"><path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z"/></svg><em>1</em><span class="k">4</span></button>
   </div>
+  <button id="gren" class="cbtn" aria-label="Granate werfen"><svg viewBox="0 0 24 24"><circle cx="11" cy="14.5" r="6"/><path d="M9 8.5h4V6H9zM13 7l4-2.5M16 9.5l2-1.5"/></svg><em id="grenN">2</em></button>
   <button id="swap" class="cbtn" aria-label="Waffe wechseln"><svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg></button>
   <button id="fire" class="cbtn" aria-label="Angreifen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></button>
   <button id="enter" hidden>Unterschlupf betreten</button>
@@ -222,8 +242,9 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
         <dt>Rechter Daumen</dt><dd>Umsehen (rechts wischen)</dd>
         <dt>Roter Knopf</dt><dd>Angreifen. Gedrückt halten und dabei ziehen zum Zielen.</dd>
         <dt>Pfeil-Knopf</dt><dd>Waffe wechseln</dd>
+        <dt>Granaten-Knopf</dt><dd>Granate werfen (die Zahl zeigt, wie viele du noch hast)</dd>
         <dt>Runde Knöpfe</dt><dd>Fähigkeiten, sobald du sie gekauft hast</dd>
-        <dt>Tastatur</dt><dd>WASD laufen, Maus umsehen, Klick angreifen, Q Waffe, 1–4 Fähigkeiten, E Unterschlupf</dd>
+        <dt>Tastatur</dt><dd>WASD laufen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf</dd>
       </dl>
     </details>
     <div class="settings">

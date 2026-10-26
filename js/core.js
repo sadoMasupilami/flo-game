@@ -112,13 +112,20 @@ const AREA_TYPES = [
   ['kriecher', 'ghul', 'spucker', 'koloss', 'schreier'],
 ];
 const HPM = [1, 1.75, 2.9, 4.4, 6.4, 9.2], DMGM = [1, 1.2, 1.45, 1.7, 2.0, 2.3], GOLDM = [1, 1.6, 2.4, 3.4, 4.6, 6];
+// Stufen-Farben: 1 neutral, 2 blau, 3 lila, 4 rot
+const LV_HEX = [0xd8cfc0, 0x4d8dff, 0xb46bff, 0xff3b4a];
+// Granaten
+const GREN_MAX = 6, GREN_DMG = 140, GREN_R = 5;
+const grenPrice = i => Math.round(40 * GOLDM[i] / 5) * 5;
+// Höhe der Lebensleiste über dem Monster
+const BAR_TOP = { kriecher: 1.0, ghul: 2.05, spucker: 1.9, koloss: 3.2, schreier: 2.2 };
 
 // ---------- Speicher ----------
 const SAVE_KEY = 'portalnacht.save.v1', OPT_KEY = 'portalnacht.opts.v1';
 function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
-function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false }; }
+function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2 }; }
 let SV = freshSave();
 let hotSave = null; // Spielstand aus einem Live-Update der Seite
 const OPT = Object.assign({ sens: 1, sound: true }, lsGet(OPT_KEY) || {});
@@ -186,6 +193,8 @@ const AU = {
       case 'death': this.tone(t, 'sine', 200, 40, 1.4, 0.5); break;
       case 'roar': this.tone(t, 'sawtooth', 60, 35, 1.6, 0.3); this.noise(t, 1.4, 700, 150, 0.4, 'bandpass', 1.5); break;
       case 'break': this.noise(t, 0.3, 1200, 200, 0.5, 'bandpass', 1); break;
+      case 'throw': this.noise(t, 0.22, 600, 2200, 0.25, 'bandpass', 1.5); break;
+      case 'tick': this.tone(t, 'square', 1800, 1800, 0.03, 0.06); break;
     }
   },
   ambient() {

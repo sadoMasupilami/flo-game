@@ -1,6 +1,6 @@
 // Portalnacht – Monster, Wellen, Endboss
 'use strict';
-const player = { pos: null, yaw: 0, pitch: 0, hp: 100, maxHp: 100, r: 0.42, eye: 1.62, bob: 0, moveAmt: 0, hurt: 0, dead: false };
+const player = { pos: null, yaw: 0, pitch: 0, hp: 100, maxHp: 100, r: 0.42, eye: 1.62, bob: 0, moveAmt: 0, hurt: 0, dead: false, sinceHit: 99 };
 if (HAS_THREE) player.pos = new T.Vector3(SAFE[0].x - 1.5, 0, SAFE[0].z);
 const monsters = [];
 const areaSt = [];
@@ -135,12 +135,17 @@ function spawnMonster(type, x, z, opt) {
     atkT: 2, sumT: 8, atk: '', deadT: 0,
   };
   m.maxHp = m.hp;
+  if (!boss) {
+    const w = clamp(m.r * 1.8, 0.8, 1.7), bg = new T.Sprite(BAR_BG), fm = new T.SpriteMaterial({ color: 0x52d273, fog: true, depthWrite: false }), fill = new T.Sprite(fm);
+    bg.scale.set(w + 0.08, 0.15, 1); fill.center.set(0, 0.5); fill.scale.set(w, 0.1, 1); fill.renderOrder = 2; bg.renderOrder = 1;
+    scene.add(bg, fill); m.bar = { bg, fill, fm, w, top: BAR_TOP[type] * sc + 0.3, c: 0x52d273 };
+  }
   if (boss) { m.state = 'rise'; bossRef = m; }
   monsters.push(m);
   if (Math.random() < 0.3 || elite || boss) AU.play(boss ? 'roar' : 'growl', 0.3);
   return m;
 }
-function removeMonster(i) { const m = monsters[i]; scene.remove(m.g); m.skin.dispose(); monsters.splice(i, 1); }
+function removeMonster(i) { const m = monsters[i]; scene.remove(m.g); m.skin.dispose(); if (m.bar) { scene.remove(m.bar.bg, m.bar.fill); m.bar.fm.dispose(); } monsters.splice(i, 1); }
 function clearMonsters() { while (monsters.length) removeMonster(monsters.length - 1); bossRef = null; }
 function aliveCount() { let n = 0; for (const m of monsters) if (m.state !== 'dead') n++; return n; }
 
@@ -182,13 +187,14 @@ function killMonster(m) {
   addDecal(p.x, p.z, rand(1.2, 2.2) * m.sc * (m.boss ? 2 : 1), 0x3a0406);
   AU.play('die', 0.05);
   if (!m.boss && Math.random() < 0.09) spawnPickup(p.x, p.z);
+  else if (!m.boss && Math.random() < 0.06) spawnPickup(p.x, p.z, 'gren');
   if (m.boss) bossDefeated(m);
 }
 
 function hurtPlayer(d) {
   if (GS !== 'play' || player.dead || winT >= 0) return;
   if (safeIdx() >= 0) return;
-  player.hp -= d; player.hurt = Math.min(1, player.hurt + 0.35 + d / 60);
+  player.sinceHit = 0; player.hp -= d; player.hurt = Math.min(1, player.hurt + 0.35 + d / 60);
   shake = Math.max(shake, 0.12 + d / 120);
   AU.play('hurt', 0.08);
   try { navigator.vibrate && navigator.vibrate(35); } catch (e) { }
@@ -382,5 +388,21 @@ function updateWaves(dt) {
       if (st.wave >= 3 && a < 5) { st.done = true; setBarrier(a, true); AU.play('clear'); showMsg('Der Weg ist frei'); }
       else { AU.play('clear', 0.3); showMsg('Welle geschafft'); }
     }
+  }
+}
+
+// ---------- Lebensleisten über den Monstern ----------
+const BAR_BG = HAS_THREE ? new T.SpriteMaterial({ color: 0x000000, transparent: true, opacity: 0.65, fog: true, depthWrite: false }) : null;
+function updateBars() {
+  _v.setFromMatrixColumn(camera.matrixWorld, 0);
+  for (const m of monsters) {
+    const b = m.bar; if (!b) continue;
+    const show = m.state !== 'dead'; b.bg.visible = b.fill.visible = show; if (!show) continue;
+    const gp = m.g.position, y = gp.y + b.top, f = clamp(m.hp / m.maxHp, 0, 1);
+    b.bg.position.set(gp.x, y, gp.z);
+    b.fill.scale.x = Math.max(0.001, b.w * f);
+    b.fill.position.set(gp.x - _v.x * b.w / 2, y - _v.y * b.w / 2, gp.z - _v.z * b.w / 2);
+    const c = f > 0.5 ? 0x52d273 : f > 0.25 ? 0xf0c040 : 0xff3b3b;
+    if (b.c !== c) { b.c = c; b.fm.color.setHex(c); }
   }
 }
