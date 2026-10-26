@@ -119,19 +119,33 @@ const GREN_MAX = 6, GREN_DMG = 140, GREN_R = 5;
 const grenPrice = i => Math.round(40 * GOLDM[i] / 5) * 5;
 // Höhe der Lebensleiste über dem Monster
 const BAR_TOP = { kriecher: 1.0, ghul: 2.05, spucker: 1.9, koloss: 3.2, schreier: 2.2 };
+// Schwierigkeitsgrade
+const DIFF = {
+  leicht: { name: 'Leicht', hp: 0.7, dmg: 0.6, gold: 1.2, regen: 10 },
+  normal: { name: 'Normal', hp: 1, dmg: 1, gold: 1, regen: 6 },
+  schwer: { name: 'Schwer', hp: 1.35, dmg: 1.4, gold: 0.9, regen: 3 },
+};
+function diff() { return DIFF[SV.diff] || DIFF.normal; }
+// Zwischenbosse am Ende der Gebiete 1–5
+const MINIS = [
+  { name: 'Der Schlächter vom Hof', type: 'koloss', scale: 1.25, skin: 0x6a3a2a, hp: 3, abil: 'charge', every: 6 },
+  { name: 'Die Spinnenmutter', type: 'kriecher', scale: 2.6, skin: 0x2a2228, hp: 14, abil: 'brood', every: 9 },
+  { name: 'Der Glöckner', type: 'ghul', scale: 1.9, skin: 0x4a4a58, hp: 10, abil: 'slam', every: 5 },
+  { name: 'Der Brummi', type: 'koloss', scale: 1.6, skin: 0x3a4a5a, hp: 4, abil: 'charge', every: 5 },
+  { name: 'Die Hexe der Vorstadt', type: 'spucker', scale: 1.8, skin: 0x3a2a4a, hp: 12, abil: 'volley', every: 2.6 },
+];
 
 // ---------- Speicher ----------
 const SAVE_KEY = 'portalnacht.save.v1', OPT_KEY = 'portalnacht.opts.v1';
 function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
-function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2 }; }
+function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal' }; }
 let SV = freshSave();
-let hotSave = null; // Spielstand aus einem Live-Update der Seite
-const OPT = Object.assign({ sens: 1, sound: true }, lsGet(OPT_KEY) || {});
+const OPT = Object.assign({ sens: 1, sound: true, music: true, vib: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
-function hasSave() { const s = lsGet(SAVE_KEY) || hotSave; return !!(s && s.weapons); }
-function loadGame() { const s = lsGet(SAVE_KEY) || hotSave; if (s && s.weapons) { SV = Object.assign(freshSave(), s); return true; } return false; }
+function hasSave() { const s = lsGet(SAVE_KEY); return !!(s && s.weapons); }
+function loadGame() { const s = lsGet(SAVE_KEY); if (s && s.weapons) { SV = Object.assign(freshSave(), s); return true; } return false; }
 function saveOpts() { lsSet(OPT_KEY, OPT); }
 
 // ---------- Ton (alles synthetisch) ----------
@@ -146,7 +160,7 @@ const AU = {
       const comp = c.createDynamicsCompressor(); this.out.connect(comp); comp.connect(c.destination);
       const len = c.sampleRate, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.nb = b; this.ambient(); this.flameLoop();
+      this.nb = b; this.ambient(); this.flameLoop(); startMusic();
     } catch (e) { this.ctx = null; }
   },
   setOn(on) { if (this.out) this.out.gain.setTargetAtTime(on ? 0.8 : 0, this.ctx.currentTime, 0.05); },
@@ -195,6 +209,7 @@ const AU = {
       case 'break': this.noise(t, 0.3, 1200, 200, 0.5, 'bandpass', 1); break;
       case 'throw': this.noise(t, 0.22, 600, 2200, 0.25, 'bandpass', 1.5); break;
       case 'tick': this.tone(t, 'square', 1800, 1800, 0.03, 0.06); break;
+      case 'dash': this.noise(t, 0.25, 400, 3000, 0.35, 'bandpass', 1.2); break;
     }
   },
   ambient() {

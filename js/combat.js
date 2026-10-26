@@ -124,7 +124,8 @@ function segSphere(a, b, c, r) {
 function inBox(p, s) { return p.x > s.x0 && p.x < s.x1 && p.z > s.z0 && p.z < s.z1 && p.y > s.y0 && p.y < s.y1; }
 // leichte Zielhilfe für Touch: Richtung auf ein Monster nahe am Fadenkreuz einrasten
 function aimAssist(dir, range) {
-  let best = IS_TOUCH ? 0.075 : 0.035, out = null; const o = camera.position;
+  const strength = { aus: 0, normal: 1, stark: 1.8 }[OPT.aim]; if (!strength) return dir.clone();
+  let best = (IS_TOUCH ? 0.075 : 0.035) * strength, out = null; const o = camera.position;
   for (const m of monsters) {
     if (m.state !== 'chase' && m.state !== 'rise') continue;
     const h = m.hits[m.hits.length > 2 ? 1 : 0];

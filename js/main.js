@@ -55,6 +55,8 @@ fireBtn.addEventListener('pointermove', moveTouch);
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) fireBtn.addEventListener(ev, e => endTouch(e.pointerId));
 $('swap').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); swapWeapon(); });
 $('gren').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); AU.init(); throwGrenade(); });
+$('dash').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); dash(); });
+addEventListener('pointerdown', () => AU.init(), { once: true });
 document.querySelectorAll('.ab').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); useAbility(+b.dataset.ab); }));
 $('enter').addEventListener('click', () => { const s = safeIdx(); if (s >= 0 && GS === 'play') openShelter(s); });
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -66,6 +68,7 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) useAbility(n); }
   if (e.code === 'KeyE') { const s = safeIdx(); if (s >= 0) openShelter(s); }
   if (e.code === 'KeyG') throwGrenade();
+  if (e.code === 'KeyF') dash();
   if (e.code === 'Space') { input.firing = true; e.preventDefault(); }
 });
 addEventListener('keyup', e => { input.keys[e.code] = false; if (e.code === 'Space') input.firing = false; });
@@ -82,21 +85,40 @@ function swapWeapon() {
 }
 
 // ---------- Spieler ----------
-function updatePlayer(dt) {
+function moveInput() {
   let mx = input.jx, my = input.jy; const k = input.keys;
   if (k.KeyW || k.ArrowUp) my += 1; if (k.KeyS || k.ArrowDown) my -= 1; if (k.KeyA) mx -= 1; if (k.KeyD) mx += 1;
-  if (k.ArrowLeft) player.yaw += 2.4 * dt; if (k.ArrowRight) player.yaw -= 2.4 * dt;
   const L = Math.hypot(mx, my); if (L > 1) { mx /= L; my /= L; }
-  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw), sp = 5.4;
-  const vx = (-sy * my + cy * mx) * sp, vz = (-cy * my - sy * mx) * sp;
+  return [mx, my];
+}
+const DASH_CD = 2.2;
+function dash() {
+  if (GS !== 'play' || player.dead || player.dashCd > 0) return;
+  let [mx, my] = moveInput();
+  if (Math.hypot(mx, my) < 0.2) { mx = 0; my = -1; } // ohne Richtung: nach hinten
+  const L = Math.hypot(mx, my); mx /= L; my /= L;
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+  player.dvx = (-sy * my + cy * mx) * 17; player.dvz = (-cy * my - sy * mx) * 17;
+  player.dashT = 0.2; player.inv = 0.35; player.dashCd = DASH_CD; player.fovKick = 9;
+  AU.play('dash', 0.1); smokePuff(player.pos.x, 0.1, player.pos.z, 5, 0.18);
+}
+function updatePlayer(dt) {
+  let [mx, my] = moveInput(); const k = input.keys;
+  if (k.ArrowLeft) player.yaw += 2.4 * dt; if (k.ArrowRight) player.yaw -= 2.4 * dt;
+  // Sprinten: Shift oder den Joystick ganz nach vorne schieben
+  const sprint = (k.ShiftLeft || k.ShiftRight || (Math.hypot(input.jx, input.jy) > 0.92 && input.jy > 0.5)) && my > 0.3;
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw), sp = 5.4 * (sprint ? 1.45 : 1);
+  let vx = (-sy * my + cy * mx) * sp, vz = (-cy * my - sy * mx) * sp;
+  if (player.dashT > 0) { player.dashT -= dt; vx = player.dvx; vz = player.dvz; if (Math.random() < dt * 40) smokePuff(player.pos.x, 0.1, player.pos.z, 1, 0.15); }
+  player.inv = Math.max(0, player.inv - dt); player.dashCd = Math.max(0, player.dashCd - dt); player.fovKick = Math.max(0, player.fovKick - dt * 40);
   player.pos.x += vx * dt; player.pos.z += vz * dt;
   resolveCircle(player.pos, player.r, false);
-  const mv = Math.min(1, Math.hypot(vx, vz) / sp);
-  player.bob += dt * 9 * mv; player.moveAmt = lerp(player.moveAmt, mv, Math.min(1, dt * 8));
+  const mv = Math.min(1.4, Math.hypot(vx, vz) / 5.4);
+  player.bob += dt * 9 * mv; player.moveAmt = lerp(player.moveAmt, Math.min(1, mv), Math.min(1, dt * 8));
   player.hurt = Math.max(0, player.hurt - dt * 1.4);
   // nach 4 Sekunden ohne Treffer heilt man sich langsam selbst
   player.sinceHit += dt;
-  if (player.sinceHit > 4 && player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + 6 * dt);
+  if (player.sinceHit > 4 && player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + diff().regen * dt);
   const s = safeIdx();
   if (s > SV.checkpoint) { SV.checkpoint = s; saveGame(); showMsg('Unterschlupf erreicht · gespeichert'); }
 }
@@ -104,6 +126,7 @@ function placeCamera(dt) {
   camera.position.set(player.pos.x, player.eye + Math.sin(player.bob * 2) * 0.035 * player.moveAmt, player.pos.z);
   if (shake > 0) { camera.position.x += rand(-1, 1) * shake * 0.25; camera.position.y += rand(-1, 1) * shake * 0.25; shake = Math.max(0, shake - dt * 1.8); }
   camera.rotation.set(player.pitch, player.yaw, 0);
+  const fov = baseFov + player.fovKick; if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.updateMatrixWorld(true);
 }
 function die() {
@@ -134,7 +157,8 @@ function updateHUD() {
   const w = curWeapon(), lv = SV.weapons[w.id] || 1, wk = w.id + lv;
   if (hc.w !== wk) { hc.w = wk; $('wName').textContent = w.name; $('wName').className = 'l' + lv; $('wPips').innerHTML = pipsHTML(lv); }
   setText('grenN', String(SV.gren)); $('gren').classList.toggle('empty', !SV.gren);
-  if (bossRef && bossRef.state !== 'dead') $('bossFill').style.transform = `scaleX(${Math.max(0, bossRef.hp / bossRef.maxHp)})`;
+  if (barRef && barRef.state !== 'dead') $('bossFill').style.transform = `scaleX(${Math.max(0, barRef.hp / barRef.maxHp)})`;
+  const dp = Math.round(player.dashCd / DASH_CD * 100) / 100, db = $('dash'); if (db._p !== dp) { db._p = dp; db.style.setProperty('--p', dp); }
   document.querySelectorAll('.ab').forEach((b, i) => {
     const l = abLv(i); b.hidden = !l; if (!l) return;
     const p = Math.round(abCd[i] / ABILITIES[i].cd[l - 1] * 100) / 100;
@@ -151,7 +175,7 @@ function updateHUD() {
 function setPlayUI(on) { $('hud').hidden = !on; $('controls').hidden = !on; if (!on) { $('vig').style.opacity = 0; $('amp').style.opacity = 0; $('rotate').hidden = true; } }
 
 // ---------- Unterschlupf, Story, Shop ----------
-function hideOverlays() { for (const id of ['menu', 'story', 'shop', 'dead', 'paused', 'win']) $(id).hidden = true; }
+function hideOverlays() { for (const id of ['menu', 'story', 'shop', 'dead', 'paused', 'win', 'settings']) $(id).hidden = true; }
 function showStory(s, cb) {
   GS = 'story'; hideOverlays();
   $('storyKicker').textContent = s.kicker; $('storyTitle').textContent = s.title; $('storyText').textContent = s.text;
@@ -166,7 +190,7 @@ function openShelter(i) {
 function showShop() {
   GS = 'shop'; hideOverlays(); setPlayUI(false);
   $('shopTitle').textContent = SHELTERS[curShelter].name; $('shopTrader').textContent = TRADER[curShelter];
-  syncSettings(); renderShop(); $('shop').hidden = false; $('shop').scrollTop = 0;
+  renderShop(); $('shop').hidden = false; $('shop').scrollTop = 0;
 }
 function gebiet(avail) { return `Ab Gebiet ${avail + 1}`; }
 function weaponCard(w) {
@@ -225,17 +249,39 @@ $('btnLeave').onclick = () => { $('shop').hidden = true; equipVM(SV.cur); GS = '
 $('btnMenu').onclick = () => { saveGame(); showMenu(); };
 
 // ---------- Einstellungen ----------
-function syncSettings() { for (const id of ['sensM', 'sensS']) $(id).value = OPT.sens; for (const id of ['soundM', 'soundS']) $(id).checked = OPT.sound; }
-for (const id of ['sensM', 'sensS']) $(id).addEventListener('input', e => { OPT.sens = +e.target.value; saveOpts(); syncSettings(); });
-for (const id of ['soundM', 'soundS']) $(id).addEventListener('change', e => { OPT.sound = e.target.checked; saveOpts(); syncSettings(); AU.init(); AU.setOn(OPT.sound); });
+let setFrom = 'menu';
+function openSettings(from) {
+  setFrom = from;
+  $('optSens').value = OPT.sens; $('optAim').value = OPT.aim; $('optGfx').value = OPT.gfx; $('optBtn').value = OPT.btn; $('optDiff').value = SV.diff || 'normal';
+  $('optSound').checked = OPT.sound; $('optMusic').checked = OPT.music; $('optVib').checked = OPT.vib;
+  $('optDiff').hidden = $('lblDiff').hidden = from !== 'shop'; // Schwierigkeit nur während eines Spiels
+  $(from).hidden = true; $('settings').hidden = false; $('settings').scrollTop = 0;
+}
+$('btnSetM').onclick = () => openSettings('menu');
+$('btnSetS').onclick = () => openSettings('shop');
+$('btnSetBack').onclick = () => { $('settings').hidden = true; $(setFrom).hidden = false; if (setFrom === 'shop') renderShop(); };
+$('optSens').addEventListener('input', e => { OPT.sens = +e.target.value; saveOpts(); });
+$('optAim').onchange = e => { OPT.aim = e.target.value; saveOpts(); };
+$('optGfx').onchange = e => { OPT.gfx = e.target.value; saveOpts(); applyGfx(); };
+$('optBtn').onchange = e => { OPT.btn = e.target.value; saveOpts(); applyBtns(); };
+$('optDiff').onchange = e => { SV.diff = e.target.value; saveGame(); };
+$('optSound').onchange = e => { OPT.sound = e.target.checked; saveOpts(); AU.init(); AU.setOn(OPT.sound); };
+$('optMusic').onchange = e => { OPT.music = e.target.checked; saveOpts(); AU.init(); setMusicOn(OPT.music); };
+$('optVib').onchange = e => { OPT.vib = e.target.checked; saveOpts(); };
+function applyBtns() { document.body.classList.toggle('bigbtn', OPT.btn === 'gross'); }
+function applyGfx() {
+  const dpr = window.devicePixelRatio || 1;
+  pixelRatio = OPT.gfx === 'schnell' ? 0.75 : OPT.gfx === 'schoen' ? Math.min(dpr, 2) : Math.min(dpr, IS_TOUCH ? 1.25 : 1.5);
+  renderer.setPixelRatio(pixelRatio); camera.far = OPT.gfx === 'schnell' ? 60 : 90; resize();
+}
 
 // ---------- Menü, Start, Tod, Sieg ----------
 function showMenu() {
   GS = 'menu'; hideOverlays(); setPlayUI(false); resetInput(); AU.flame(false);
-  const has = hasSave(); $('btnContinue').hidden = !has; $('confirmNew').hidden = true;
-  if (has) { const s = lsGet(SAVE_KEY) || hotSave; $('saveInfo').textContent = `Spielstand: ${SHELTERS[s.checkpoint || 0].name} (Gebiet ${(s.checkpoint || 0) + 1}) · ${fmt(s.money || 0)} Münzen`; }
+  const has = hasSave(); $('btnContinue').hidden = !has; $('confirmNew').hidden = true; $('diffPick').hidden = true;
+  if (has) { const s = lsGet(SAVE_KEY); $('saveInfo').textContent = `Spielstand: ${SHELTERS[s.checkpoint || 0].name} (Gebiet ${(s.checkpoint || 0) + 1}) · ${fmt(s.money || 0)} Münzen · ${(DIFF[s.diff] || DIFF.normal).name}`; }
   else $('saveInfo').textContent = '';
-  syncSettings(); $('menu').hidden = false;
+  $('menu').hidden = false;
   scene.fog.color.setHex(AREAS[5].fog); scene.background.setHex(AREAS[5].fog); scene.fog.density = AREAS[5].dens;
 }
 function tryFullscreen() {
@@ -245,7 +291,7 @@ function tryFullscreen() {
 function resetWorld(cp) {
   clearMonsters(); clearProjs(); clearAcids(); clearPatches(); clearBarricades(); clearPickups(); clearDecals(); clearGrenades();
   resetAreas(cp); $('bossbar').hidden = true; winT = -1; if (portal) portal.s = 1;
-  player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99;
+  player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99; player.inv = 0; player.dashT = 0; player.dashCd = 0; player.fovKick = 0;
   abCd.fill(0); abOn.fill(0); lastArea = -1;
   const A = AREAS[curArea()]; scene.fog.color.setHex(A.fog); scene.background.setHex(A.fog); scene.fog.density = A.dens;
   if (!SV.weapons[SV.cur]) SV.cur = 'holz';
@@ -258,13 +304,14 @@ function enterGame(cp, openFirst) {
   if (openFirst) openShelter(cp);
 }
 $('btnContinue').onclick = () => { loadGame(); enterGame(SV.checkpoint, false); };
-$('btnNew').onclick = () => { if (hasSave()) { $('confirmNew').hidden = false; return; } startNew(); };
-$('btnNewYes').onclick = startNew;
+$('btnNew').onclick = () => { if (hasSave()) { $('confirmNew').hidden = false; $('diffPick').hidden = true; return; } $('diffPick').hidden = false; };
+$('btnNewYes').onclick = () => { $('confirmNew').hidden = true; $('diffPick').hidden = false; };
+document.querySelectorAll('.diffbtn').forEach(b => { b.onclick = () => startNew(b.dataset.diff); });
 $('btnNewNo').onclick = () => { $('confirmNew').hidden = true; };
-function startNew() { SV = freshSave(); hotSave = null; saveGame(); enterGame(0, true); }
+function startNew(d) { SV = freshSave(); SV.diff = DIFF[d] ? d : 'normal'; saveGame(); enterGame(0, true); }
 $('btnRespawn').onclick = () => { $('dead').hidden = true; resetWorld(SV.checkpoint); GS = 'play'; setPlayUI(true); showToast(SHELTERS[SV.checkpoint].name, 'Nochmal'); };
 $('btnResume').onclick = () => { $('paused').hidden = true; GS = 'play'; setPlayUI(true); };
-$('btnWinNew').onclick = startNew;
+$('btnWinNew').onclick = () => startNew(SV.diff);
 $('btnWinMenu').onclick = showMenu;
 document.addEventListener('visibilitychange', () => { if (document.hidden && GS === 'play') { GS = 'paused'; resetInput(); AU.flame(false); flameOn = false; setPlayUI(false); $('paused').hidden = false; } });
 
@@ -277,9 +324,11 @@ function showWin() {
 }
 
 // ---------- Hauptschleife ----------
+let baseFov = 72;
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
-  camera.aspect = w / h; camera.fov = w / h < 1 ? 86 : 72; camera.updateProjectionMatrix();
+  baseFov = w / h < 1 ? 86 : 72;
+  camera.aspect = w / h; camera.fov = baseFov; camera.updateProjectionMatrix();
   PU.uScale.value = h * renderer.getPixelRatio() / (2 * Math.tan(camera.fov * Math.PI / 360));
 }
 addEventListener('resize', resize);
@@ -289,7 +338,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
   // langsame Geräte: Auflösung etwas senken
   if (dt > 1 / 36) slowT += dt; else slowT = Math.max(0, slowT - dt * 0.5);
-  if (slowT > 2.5 && pixelRatio > 0.75) { pixelRatio = Math.max(0.75, pixelRatio - 0.2); renderer.setPixelRatio(pixelRatio); resize(); slowT = 0; }
+  if (OPT.gfx === 'auto' && slowT > 2.5 && pixelRatio > 0.75) { pixelRatio = Math.max(0.75, pixelRatio - 0.2); renderer.setPixelRatio(pixelRatio); resize(); slowT = 0; }
 
   if (GS === 'play') {
     SV.time += dt;
@@ -315,6 +364,7 @@ function frame(now) {
     camera.position.set(Math.sin(menuT * 0.12) * 4, 2.2 + Math.sin(menuT * 0.3) * 0.2, -728);
     camera.lookAt(0, 8.5, -777); camera.updateMatrixWorld(true);
   }
+  if (AU.ctx) { MU.intense = areaSt.some(s => s && s.active); setMusic(pickMusic()); }
   updateWorld(dt, clock, camera.position);
   if (moon) { moon.position.set(camera.position.x - 34, 30, camera.position.z - 66); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu'; }
   PU.uFogD.value = scene.fog.density;
@@ -323,13 +373,18 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+function pickMusic() {
+  if (GS === 'menu') return 'menu';
+  if (GS === 'shop' || GS === 'story' || GS === 'win') return 'safe';
+  if (GS !== 'play') return null;
+  if (barRef && barRef.state !== 'dead') return 'boss';
+  return 'a' + curArea();
+}
+
 // ---------- Start ----------
-function boot(data) {
+function boot() {
   if (!HAS_THREE) return;
-  if (data && data.save && data.save.weapons) hotSave = data.save;
-  buildWorld(); buildViewModels(); resetAreas(0); resize(); showMenu();
+  buildWorld(); buildViewModels(); resetAreas(0); applyBtns(); applyGfx(); showMenu();
   requestAnimationFrame(t => { last = t; frame(t); });
 }
-try { window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(() => ({ save: SV })); } catch (e) { }
-if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(boot);
-else boot((window.claude && window.claude.hot && window.claude.hot.data) || {});
+boot();

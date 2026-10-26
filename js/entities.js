@@ -1,10 +1,10 @@
 // Portalnacht – Monster, Wellen, Endboss
 'use strict';
-const player = { pos: null, yaw: 0, pitch: 0, hp: 100, maxHp: 100, r: 0.42, eye: 1.62, bob: 0, moveAmt: 0, hurt: 0, dead: false, sinceHit: 99 };
+const player = { pos: null, yaw: 0, pitch: 0, hp: 100, maxHp: 100, r: 0.42, eye: 1.62, bob: 0, moveAmt: 0, hurt: 0, dead: false, sinceHit: 99, inv: 0, dashT: 0, dashCd: 0, dvx: 0, dvz: 0, fovKick: 0 };
 if (HAS_THREE) player.pos = new T.Vector3(SAFE[0].x - 1.5, 0, SAFE[0].z);
 const monsters = [];
 const areaSt = [];
-let shake = 0, bossRef = null, winT = -1;
+let shake = 0, bossRef = null, barRef = null, winT = -1;
 const _v = HAS_THREE ? new T.Vector3() : null;
 
 function curArea() { return clamp(Math.floor(-player.pos.z / AREA_LEN), 0, 5); }
@@ -122,31 +122,34 @@ function spawnMonster(type, x, z, opt) {
   opt = opt || {};
   const a = opt.area == null ? curArea() : opt.area, def = MT[type], elite = !!opt.elite, boss = type === 'koenigin';
   const { g, P, skin } = buildMonster(type);
-  const sc = boss ? 1.25 : elite ? 1.4 : 1;
+  const mini = opt.mini != null ? MINIS[opt.mini] : null;
+  if (mini) skin.color.setHex(mini.skin);
+  const sc = mini ? mini.scale : boss ? 1.25 : elite ? 1.4 : 1;
   g.scale.setScalar(sc); g.position.set(x, -2.6 * sc, z); scene.add(g);
   if (elite) { const ring = new T.Mesh(G.ring, mat(0xff2030, { basic: true, add: true, op: 0.7 })); ring.scale.setScalar(2.2); ring.position.y = 0.05; g.add(ring); P.aura = ring; skin.emissive.setHex(0x220000); }
   const m = {
     type, def, g, P, skin, boss, elite, sc, a,
-    hp: def.hp * HPM[a] * (elite ? 6 : 1), dmg: def.dmg * DMGM[a] * (elite ? 1.4 : 1),
-    spd: def.spd * (1 + a * 0.04) * (elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
+    hp: def.hp * HPM[a] * (mini ? mini.hp : elite ? 6 : 1) * diff().hp, dmg: def.dmg * DMGM[a] * (mini ? 1.3 : elite ? 1.4 : 1) * diff().dmg,
+    spd: def.spd * (1 + a * 0.04) * (mini ? 0.8 : elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
     cd: rand(0.3, 1), state: 'rise', t: 0, phase: rand(0, TAU), burn: 0, burnDps: 0, flash: 0, wind: 0, windMax: 0.4, strike: 0,
-    gold: Math.round(def.gold * GOLDM[a] * (elite ? 6 : 1) * GOLD), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
+    gold: Math.round(def.gold * GOLDM[a] * (mini ? 10 : elite ? 6 : 1) * GOLD * diff().gold), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
     wa: opt.wa == null ? -1 : opt.wa, wj: opt.wj == null ? -1 : opt.wj, hits: HIT[type], blocked: null, target: null,
     atkT: 2, sumT: 8, atk: '', deadT: 0,
   };
   m.maxHp = m.hp;
-  if (!boss) {
+  if (mini) { m.mini = { def: mini, t: mini.every * 0.6, charging: 0, dx: 0, dz: 0 }; barRef = m; $('bossName').textContent = mini.name; $('bossbar').hidden = false; }
+  if (!boss && !mini) {
     const w = clamp(m.r * 1.8, 0.8, 1.7), bg = new T.Sprite(BAR_BG), fm = new T.SpriteMaterial({ color: 0x52d273, fog: true, depthWrite: false }), fill = new T.Sprite(fm);
     bg.scale.set(w + 0.08, 0.15, 1); fill.center.set(0, 0.5); fill.scale.set(w, 0.1, 1); fill.renderOrder = 2; bg.renderOrder = 1;
     scene.add(bg, fill); m.bar = { bg, fill, fm, w, top: BAR_TOP[type] * sc + 0.3, c: 0x52d273 };
   }
-  if (boss) { m.state = 'rise'; bossRef = m; }
+  if (boss) { m.state = 'rise'; bossRef = m; barRef = m; }
   monsters.push(m);
   if (Math.random() < 0.3 || elite || boss) AU.play(boss ? 'roar' : 'growl', 0.3);
   return m;
 }
 function removeMonster(i) { const m = monsters[i]; scene.remove(m.g); m.skin.dispose(); if (m.bar) { scene.remove(m.bar.bg, m.bar.fill); m.bar.fm.dispose(); } monsters.splice(i, 1); }
-function clearMonsters() { while (monsters.length) removeMonster(monsters.length - 1); bossRef = null; }
+function clearMonsters() { while (monsters.length) removeMonster(monsters.length - 1); bossRef = null; barRef = null; }
 function aliveCount() { let n = 0; for (const m of monsters) if (m.state !== 'dead') n++; return n; }
 
 function animMonster(m, dt, moving) {
@@ -189,15 +192,20 @@ function killMonster(m) {
   if (!m.boss && Math.random() < 0.09) spawnPickup(p.x, p.z);
   else if (!m.boss && Math.random() < 0.06) spawnPickup(p.x, p.z, 'gren');
   if (m.boss) bossDefeated(m);
+  else if (m.mini) {
+    barRef = null; $('bossbar').hidden = true;
+    spawnPickup(p.x + 1, p.z, 'gren'); spawnPickup(p.x - 1, p.z);
+    showMsg(`${m.mini.def.name} ist besiegt!`); AU.play('clear');
+  }
 }
 
 function hurtPlayer(d) {
   if (GS !== 'play' || player.dead || winT >= 0) return;
-  if (safeIdx() >= 0) return;
+  if (safeIdx() >= 0 || player.inv > 0) return;
   player.sinceHit = 0; player.hp -= d; player.hurt = Math.min(1, player.hurt + 0.35 + d / 60);
   shake = Math.max(shake, 0.12 + d / 120);
   AU.play('hurt', 0.08);
-  try { navigator.vibrate && navigator.vibrate(35); } catch (e) { }
+  if (OPT.vib) try { navigator.vibrate && navigator.vibrate(35); } catch (e) { }
   if (player.hp <= 0) { player.hp = 0; die(); }
 }
 
@@ -240,6 +248,7 @@ function updateMonsters(dt) {
     if (m.strike > 0) m.strike -= dt;
     let mvx = 0, mvz = 0, sp = m.spd;
     if (m.boss) { const r = updateBoss(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
+    else if (m.mini) { const r = updateMini(m, dt, dist, nx, nz); mvx = r[0]; mvz = r[1]; sp = r[2]; }
     else if (m.wind > 0) {
       m.wind -= dt;
       if (m.wind <= 0) {
@@ -347,14 +356,15 @@ function startWave(a) {
   if (a === 5 && j === 2) {
     st.boss = true; st.queue = [];
     const b = spawnMonster('koenigin', 0, -770, { area: 5, wa: 5, wj: 2 });
-    $('bossbar').hidden = false;
+    $('bossName').textContent = MT.koenigin.name; $('bossbar').hidden = false;
     showToast('Endgegner', 'Die Monsterkönigin'); shake = 0.6;
     return;
   }
   const n = 6 + a * 2 + j * 2, q = [];
   for (let i = 0; i < n; i++) q.push({ t: weightedType(a), elite: false });
-  if (j === 2 || (a === 5 && j === 1)) q.push({ t: a < 2 ? 'ghul' : 'koloss', elite: true });
+  if (j === 1) q.push({ t: a < 2 ? 'ghul' : 'koloss', elite: true });
   for (let i = q.length - 1; i > 0; i--) { const k = (Math.random() * (i + 1)) | 0;[q[i], q[k]] = [q[k], q[i]]; }
+  if (j === 2 && a < 5) q.push({ t: MINIS[a].type, mini: a }); // Zwischenboss kommt zum Schluss
   st.queue = q;
   AU.play('wave', 0.5);
   showMsg(`Welle ${j + 1} – sie kommen!`);
@@ -380,7 +390,7 @@ function updateWaves(dt) {
       st.spawnT -= dt;
       if (st.spawnT <= 0 && aliveCount() < 10 + a * 1.5) {
         const q = st.queue.shift(), p = spawnPos(a);
-        spawnMonster(q.t, p[0], p[1], { area: a, elite: q.elite, wa: a, wj: st.wave });
+        spawnMonster(q.t, p[0], p[1], { area: a, elite: q.elite, mini: q.mini, wa: a, wj: st.wave });
         st.spawnT = rand(0.45, 0.8);
       }
     } else if (waveRemaining(a, st.wave) === 0) {
@@ -405,4 +415,52 @@ function updateBars() {
     const c = f > 0.5 ? 0x52d273 : f > 0.25 ? 0xf0c040 : 0xff3b3b;
     if (b.c !== c) { b.c = c; b.fm.color.setHex(c); }
   }
+}
+
+// ---------- Zwischenbosse ----------
+function knockPlayer(dx, dz, f) { player.pos.x += dx * f; player.pos.z += dz * f; resolveCircle(player.pos, player.r, false); }
+function updateMini(m, dt, dist, nx, nz) {
+  const k = m.mini, d = k.def, gp = m.g.position;
+  k.t -= dt;
+  if (k.charging > 0) {
+    k.charging -= dt;
+    if (Math.random() < dt * 30) smokePuff(gp.x, 0.1, gp.z, 1, 0.15);
+    if (dist < m.r + player.r + 0.5) { hurtPlayer(m.dmg * 1.5); knockPlayer(k.dx, k.dz, 2.2); shake = Math.max(shake, 0.5); k.charging = 0; }
+    return [k.dx, k.dz, m.spd * 3.4];
+  }
+  if (m.wind > 0) {
+    m.wind -= dt;
+    if (m.wind <= 0) {
+      if (m.atk === 'charge') { k.charging = 1.1; k.dx = nx; k.dz = nz; AU.play('dash'); }
+      else if (m.atk === 'slam') {
+        if (dist < 5) { hurtPlayer(m.dmg * 1.3); knockPlayer(nx, nz, 1.5); }
+        shake = Math.max(shake, 0.6); AU.play('boom', 0.2);
+        for (let i = 0; i < 30; i++) { const a = rand(0, TAU), r = rand(1, 5); smokePuff(gp.x + Math.cos(a) * r, 0.1, gp.z + Math.sin(a) * r, 1, 0.18); }
+      }
+      else if (m.atk === 'volley') { for (let i = 0; i < 5; i++) spitAcid(m, 0.8, (i - 2) * 0.17); }
+      else if (m.atk === 'brood') {
+        for (let i = 0; i < 3; i++) { const a = rand(0, TAU); spawnMonster('kriecher', clamp(gp.x + Math.cos(a) * 2.5, -16, 16), gp.z + Math.sin(a) * 2.5, { area: m.a }); }
+        showMsg('Die Spinnenmutter ruft ihre Brut');
+      }
+      else strikeAt(m, dist);
+      m.cd = m.def.cd; m.strike = 0.25;
+    }
+    return [0, 0, 0];
+  }
+  m.cd -= dt;
+  const ab = d.abil, start = (atk, w, snd) => { m.atk = atk; m.wind = m.windMax = w; k.t = d.every; AU.play(snd, 0.4); return [0, 0, 0]; };
+  if (k.t <= 0 && safeIdx() < 0) {
+    if (ab === 'charge' && dist > 4 && dist < 20) return start('charge', 0.8, 'roar');
+    if (ab === 'slam' && dist < 5.5) return start('slam', 0.8, 'roar');
+    if (ab === 'brood' && aliveCount() < 14) return start('brood', 0.6, 'growl');
+    if (ab === 'volley' && dist < 18) return start('volley', 0.6, 'spit');
+  }
+  if (ab === 'volley') {
+    if (dist > 11) return [nx, nz, m.spd];
+    if (dist < 6) return [-nx, -nz, m.spd * 0.7];
+    return [-nz * m.side, nx * m.side, m.spd * 0.45];
+  }
+  if (dist < m.range && m.cd <= 0 && safeIdx() < 0) { m.atk = 'melee'; m.wind = m.windMax = 0.5; return [0, 0, 0]; }
+  if (dist > m.range * 0.75) return [nx, nz, m.spd];
+  return [0, 0, 0];
 }

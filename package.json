@@ -1,0 +1,11 @@
+{
+  "name": "portalnacht",
+  "private": true,
+  "description": "3D-Monsterspiel für das Handy",
+  "scripts": {
+    "test": "node tests/smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

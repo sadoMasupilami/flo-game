@@ -1,10 +1,19 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Portalnacht</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#07080a">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Creepster&family=Special+Elite&display=swap">
 <style>
+[hidden]{display:none!important}
 :root{
   /* Layout: Vollbild-3D-Szene; HUD an den oberen Ecken, Daumensteuerung unten links/rechts; Menüs als dunkle Karten über der Szene */
   --night:#07080a;
@@ -89,27 +98,29 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 #rotate{position:fixed;left:50%;top:calc(var(--st) + 92px);transform:translateX(-50%);z-index:5;pointer-events:none;background:rgba(10,9,10,.8);border:1px solid var(--line2);padding:6px 12px;font:600 14px var(--f-ui);white-space:nowrap}
 
 /* Steuerung */
-#controls{position:fixed;inset:0;z-index:4;pointer-events:none}
+#controls{position:fixed;inset:0;z-index:4;pointer-events:none;--f:96px;--b:58px;--a:56px}
+body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 #controls button{pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
 #joy{position:absolute;width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:1.5px solid var(--line2);background:rgba(10,9,10,.25)}
 #joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(236,226,210,.2);border:1.5px solid rgba(236,226,210,.5)}
 #joyhint{position:absolute;left:calc(var(--gl) + 30px);bottom:calc(var(--sb) + 30px);width:110px;height:110px;border-radius:50%;border:1.5px dashed rgba(236,226,210,.22);display:grid;place-items:center;font:600 12px/1.1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;color:rgba(236,226,210,.4);text-align:center}
 .cbtn{position:absolute;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--line2);background:rgba(14,12,13,.55);padding:0}
 .cbtn svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-#fire{right:calc(var(--gr) + 6px);bottom:calc(var(--sb) + 16px);width:96px;height:96px;border:2px solid rgba(255,74,87,.75);background:rgba(120,10,20,.3)}
+#fire{right:calc(var(--gr) + 6px);bottom:calc(var(--sb) + 16px);width:var(--f);height:var(--f);border:2px solid rgba(255,74,87,.75);background:rgba(120,10,20,.3)}
 #fire svg{width:40px;height:40px}
 #fire.on{background:rgba(168,16,28,.65)}
-#swap{right:calc(var(--gr) + 116px);bottom:calc(var(--sb) + 18px);width:58px;height:58px}
-#abil{position:absolute;right:calc(var(--gr) + 6px);bottom:calc(var(--sb) + 126px);display:flex;flex-direction:row-reverse;gap:10px}
-.ab{position:relative;width:56px;height:56px;border-radius:50%;border:1.5px solid var(--line2);background:rgba(14,12,13,.6);display:grid;place-items:center;padding:0;pointer-events:auto}
+#dash{right:calc(var(--gr) + var(--f) + 18px);bottom:calc(var(--sb) + 18px);width:var(--b);height:var(--b);border-color:rgba(236,226,210,.45)}
+#swap{right:calc(var(--gr) + var(--f) + 2 * var(--b) + 42px);bottom:calc(var(--sb) + 18px);width:var(--b);height:var(--b)}
+#abil{position:absolute;right:calc(var(--gr) + 6px);bottom:calc(var(--sb) + var(--f) + 30px);display:flex;flex-direction:row-reverse;gap:10px}
+.ab{position:relative;width:var(--a);height:var(--a);border-radius:50%;border:1.5px solid var(--line2);background:rgba(14,12,13,.6);display:grid;place-items:center;padding:0;pointer-events:auto}
 .ab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;position:relative}
-.ab .cd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(0,0,0,.75) calc(var(--p,0) * 1turn),transparent 0)}
+.ab .cd,#dash .cd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(0,0,0,.75) calc(var(--p,0) * 1turn),transparent 0)}
 .ab.on{border-color:var(--lamp);box-shadow:0 0 16px rgba(240,174,78,.55)}
 .ab em,#gren em{position:absolute;right:-4px;bottom:-3px;font:700 11px/1 var(--f-ui);font-style:normal;background:#4a4440;color:var(--ink);padding:2px 5px}
 .ab em.l2{background:var(--lv2);color:#fff}
 .ab em.l3{background:var(--lv3);color:#fff}
 .ab em.l4{background:var(--lv4);color:#fff}
-#gren{right:calc(var(--gr) + 186px);bottom:calc(var(--sb) + 18px);width:58px;height:58px}
+#gren{right:calc(var(--gr) + var(--f) + var(--b) + 30px);bottom:calc(var(--sb) + 18px);width:var(--b);height:var(--b)}
 #gren em{background:#3a4a2a}
 #gren.empty{opacity:.45}
 .ab .k{position:absolute;left:-2px;top:-4px;font:600 10px var(--f-ui);color:var(--dim)}
@@ -177,10 +188,22 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 .stats div{display:grid}
 .stats b{font:700 26px/1 var(--f-ui);font-variant-numeric:tabular-nums}
 .stats span{font:600 12px var(--f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.diffrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.diffbtn{text-align:left;border:1.5px solid var(--line2);background:rgba(22,18,19,.85);padding:12px;display:grid;gap:5px;align-content:start}
+.diffbtn b{font:700 19px/1 var(--f-ui);text-transform:uppercase;letter-spacing:.06em}
+.diffbtn span{font-size:14px;color:var(--dim);line-height:1.3}
+.diffbtn[data-diff=leicht] b{color:var(--heal)}
+.diffbtn[data-diff=schwer] b{color:var(--bloodhi)}
+.setgrid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px 18px;align-items:center;margin:14px 0 18px;font-size:17px}
+.setgrid label{color:var(--dim);font-weight:600}
+.setgrid select{font:600 16px var(--f-ui);color:var(--ink);background:#1d1819;border:1px solid var(--line2);padding:8px 10px;max-width:100%;justify-self:start}
+.setgrid input[type=range]{width:100%;max-width:260px;accent-color:var(--lamp)}
+.setgrid input[type=checkbox]{width:22px;height:22px;accent-color:var(--lamp);justify-self:start}
 #loadErr{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding-inline:24px;z-index:30;background:var(--night)}
 @media (prefers-reduced-motion:reduce){#feed span{animation-duration:.01s}}
 </style>
-
+</head>
+<body>
 <canvas id="c"></canvas>
 <div id="touch"></div>
 
@@ -193,7 +216,7 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
     <div class="where"><div class="area" id="areaName">Gebiet 1 · Der Hof</div><div class="obj" id="objective">Folge dem Weg</div></div>
     <div class="wpn"><b id="wName">Holzschwert</b><span class="pips" id="wPips"></span></div>
   </div>
-  <div id="bossbar" hidden><div class="bn">Die Monsterkönigin</div><div class="bb"><i id="bossFill"></i></div></div>
+  <div id="bossbar" hidden><div class="bn" id="bossName">Die Monsterkönigin</div><div class="bb"><i id="bossFill"></i></div></div>
   <div id="cross"></div>
   <div id="hit"></div>
   <div id="feed"></div>
@@ -216,6 +239,7 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
   </div>
   <button id="gren" class="cbtn" aria-label="Granate werfen"><svg viewBox="0 0 24 24"><circle cx="11" cy="14.5" r="6"/><path d="M9 8.5h4V6H9zM13 7l4-2.5M16 9.5l2-1.5"/></svg><em id="grenN">2</em></button>
   <button id="swap" class="cbtn" aria-label="Waffe wechseln"><svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg></button>
+  <button id="dash" class="cbtn" aria-label="Ausweichen"><i class="cd"></i><svg viewBox="0 0 24 24"><path d="M3 12h9M5 8h5M5 16h5M14 6l6 6-6 6"/></svg></button>
   <button id="fire" class="cbtn" aria-label="Angreifen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></button>
   <button id="enter" hidden>Unterschlupf betreten</button>
 </div>
@@ -234,6 +258,14 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
       <button id="btnNewYes" class="btn small primary">Ja, neu starten</button>
       <button id="btnNewNo" class="btn small">Abbrechen</button>
     </div>
+    <div id="diffPick" hidden>
+      <p class="eyebrow" style="margin-top:14px">Wie schwer soll es sein?</p>
+      <div class="diffrow">
+        <button class="diffbtn" data-diff="leicht"><b>Leicht</b><span>Monster halten weniger aus und treffen schwächer. Du heilst dich schneller.</span></button>
+        <button class="diffbtn" data-diff="normal"><b>Normal</b><span>So ist das Spiel gedacht.</span></button>
+        <button class="diffbtn" data-diff="schwer"><b>Schwer</b><span>Mehr Leben, härtere Treffer, weniger Münzen und langsamere Heilung.</span></button>
+      </div>
+    </div>
     <p id="saveInfo" class="small"></p>
     <details class="howto">
       <summary>Steuerung</summary>
@@ -241,16 +273,15 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
         <dt>Linker Daumen</dt><dd>Laufen (irgendwo links auf den Bildschirm tippen und ziehen)</dd>
         <dt>Rechter Daumen</dt><dd>Umsehen (rechts wischen)</dd>
         <dt>Roter Knopf</dt><dd>Angreifen. Gedrückt halten und dabei ziehen zum Zielen.</dd>
+        <dt>Sprinten</dt><dd>Linken Daumen ganz nach vorne schieben</dd>
+        <dt>Ausweich-Knopf</dt><dd>Kurzer Satz in Laufrichtung. Während des Sprungs kann dich nichts treffen.</dd>
         <dt>Pfeil-Knopf</dt><dd>Waffe wechseln</dd>
         <dt>Granaten-Knopf</dt><dd>Granate werfen (die Zahl zeigt, wie viele du noch hast)</dd>
         <dt>Runde Knöpfe</dt><dd>Fähigkeiten, sobald du sie gekauft hast</dd>
-        <dt>Tastatur</dt><dd>WASD laufen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf</dd>
+        <dt>Tastatur</dt><dd>WASD laufen, Shift sprinten, F ausweichen, Maus umsehen, Klick angreifen, Q Waffe, G Granate, 1–4 Fähigkeiten, E Unterschlupf</dd>
       </dl>
     </details>
-    <div class="settings">
-      <label>Umsehen <input type="range" id="sensM" min="0.4" max="2.2" step="0.1" value="1"></label>
-      <label><input type="checkbox" id="soundM" checked> Ton</label>
-    </div>
+    <div class="actions" style="margin-top:14px"><button id="btnSetM" class="btn small">Einstellungen</button></div>
   </div>
 </section>
 
@@ -276,13 +307,29 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
     </div>
     <div class="grid" id="shopList"></div>
     <div class="shop-foot">
-      <div class="settings" style="margin:0">
-        <label>Umsehen <input type="range" id="sensS" min="0.4" max="2.2" step="0.1" value="1"></label>
-        <label><input type="checkbox" id="soundS" checked> Ton</label>
+      <div class="actions">
+        <button id="btnSetS" class="btn small">Einstellungen</button>
         <button id="btnMenu" class="btn small">Hauptmenü</button>
       </div>
       <button id="btnLeave" class="btn primary">Losgehen</button>
     </div>
+  </div>
+</section>
+
+<section id="settings" class="ov" hidden>
+  <div class="card">
+    <p class="eyebrow">Einstellungen</p>
+    <div class="setgrid">
+      <label for="optSens">Umsehen</label><input type="range" id="optSens" min="0.4" max="2.2" step="0.1" value="1">
+      <label for="optAim">Zielhilfe</label><select id="optAim"><option value="aus">Aus</option><option value="normal">Normal</option><option value="stark">Stark</option></select>
+      <label for="optGfx">Grafik</label><select id="optGfx"><option value="auto">Automatisch</option><option value="schnell">Schnell (ruckelt weniger)</option><option value="schoen">Schön (braucht ein starkes Handy)</option></select>
+      <label for="optBtn">Knöpfe</label><select id="optBtn"><option value="normal">Normal</option><option value="gross">Groß</option></select>
+      <label for="optDiff" id="lblDiff">Schwierigkeit</label><select id="optDiff"><option value="leicht">Leicht</option><option value="normal">Normal</option><option value="schwer">Schwer</option></select>
+      <label for="optSound">Ton</label><input type="checkbox" id="optSound">
+      <label for="optMusic">Musik</label><input type="checkbox" id="optMusic">
+      <label for="optVib">Vibration</label><input type="checkbox" id="optVib">
+    </div>
+    <button id="btnSetBack" class="btn primary">Fertig</button>
   </div>
 </section>
 
@@ -316,7 +363,10 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/core.js"></script>
+<script src="js/music.js"></script>
 <script src="js/world.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/main.js"></script>
+</body>
+</html>
