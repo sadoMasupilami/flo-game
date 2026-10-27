@@ -60,7 +60,7 @@ const NEST_R = 15;
 
 // Geschichte je Unterschlupf. In der offenen Welt kann man sie in beliebiger Reihenfolge finden.
 const STORY = [
-  { kicker: 'Funkspruch · 00:14 Uhr', title: 'Die Nacht, in der sie kamen', text: 'Im Radio knistert eine Stimme: Über dem Stadtzentrum hat sich ein Portal geöffnet. Monster strömen heraus und ziehen über das Land.\n\nDeine Großeltern sind am Abend in die Stadt gefahren und nicht zurückgekommen. Du nimmst Opas altes Holzschwert von der Wand.\n\nAuf Opas Karte siehst du das ganze Land: den Hof, den Finsterwald, das Dorf, die Autobahn, die Vorstadt und ganz im Süden das Stadtzentrum. In jedem Gebiet hat sich ein Monsternest gebildet. Erst wenn alle fünf Nester zerstört sind, fällt die Barriere vor dem Portal.' },
+  { kicker: 'Funkspruch · 00:14 Uhr', title: 'Die Nacht, in der sie kamen', text: 'Im Radio knistert eine Stimme: Über dem Stadtzentrum hat sich ein Portal geöffnet. Monster strömen heraus und ziehen über das Land.\n\nDeine Großeltern sind am Abend in die Stadt gefahren und nicht zurückgekommen. Du nimmst Opas altes Holzschwert von der Wand. Opas Hund Bruno springt aufgeregt um dich herum. Er kommt mit.\n\nAuf Opas Karte siehst du das ganze Land: den Hof, den Finsterwald, das Dorf, die Autobahn, die Vorstadt und ganz im Süden das Stadtzentrum. In jedem Gebiet hat sich ein Monsternest gebildet. Erst wenn alle fünf Nester zerstört sind, fällt die Barriere vor dem Portal.' },
   { kicker: 'Försterhütte', title: 'Spuren im Schlamm', text: 'Vor der Hütte ist der Boden aufgewühlt. Große Spuren und kleine, und alle führen in dieselbe Richtung: tiefer in den Wald, dorthin, wo es violett schimmert.\n\nAn der Tür klebt ein Zettel vom Förster: BIN IN DER STADT. KOMME NICHT HINTERHER.' },
   { kicker: 'Feuerwehrhaus', title: 'Der rote Kreis', text: 'Das Feuerwehrhaus ist verbarrikadiert, aber die Hintertür ist offen. An der Wand hängt eine Karte. Jemand hat mit rotem Stift einen Kreis um das Stadtzentrum gemalt und daneben geschrieben: NICHT HINGEHEN.\n\nMara zuckt mit den Schultern. „Je näher du dem Portal kommst, desto stärker werden sie. Kauf klug.“' },
   { kicker: 'Raststätte', title: 'Die Königin', text: 'Die Raststätte riecht nach kaltem Kaffee. Aus einem Funkgerät hörst du andere Überlebende: Die Monster gehorchen einer Königin. Sie sitzt im Portal und schickt immer mehr von ihnen.\n\n„Wer sie erledigt, schließt das Portal“, sagt Mara. „Aber vorher müssen die Nester weg. Solange eins steht, hält die Barriere.“' },
@@ -167,6 +167,20 @@ const DIFF = {
   schwer: { name: 'Schwer', hp: 1.35, dmg: 1.4, gold: 0.9, regen: 3 },
 };
 function diff() { return DIFF[SV.diff] || DIFF.normal; }
+// Monster passen sich der Ausrüstung an: Wie gut ist man ausgerüstet (0 = für den Hof … 5 = für die Stadt)?
+function powerArea() {
+  let p = 0;
+  for (const w of WEAPONS) { const lv = SV.weapons[w.id]; if (lv) p = Math.max(p, w.avail + (lv - 1) * 0.35); }
+  return clamp(p + gearLv('ruestung') * 0.12, 0, 5);
+}
+// Stärke der Monster in Gebiet a: bis zu 1,5 Gebiete leichter, wenn man zu schwach ist, bis zu 1 Gebiet schwerer, wenn man zu stark ist
+function areaLevel(a) {
+  if (MODE !== 'story') return a;
+  const d = powerArea() - a;
+  return clamp(a + (d > 0 ? Math.min(1, d * 0.6) : Math.max(-1.5, d)), 0, 5);
+}
+// Wert aus einer Tabelle je Gebiet (HPM, DMGM, GOLDM) für die angepasste Stärke, zwischen den Stufen gemischt
+function areaScale(tbl, a) { const l = areaLevel(a), i = Math.floor(l), j = Math.min(5, i + 1); return tbl[i] + (tbl[j] - tbl[i]) * (l - i); }
 // Zwischenbosse am Ende der Gebiete 1–5
 const MINIS = [
   { name: 'Der Schlächter vom Hof', type: 'koloss', scale: 1.25, skin: 0x6a3a2a, hp: 3, abil: 'charge', every: 6 },
@@ -181,7 +195,7 @@ const SAVE_KEY = 'portalnacht.save.v1', OPT_KEY = 'portalnacht.opts.v1';
 function lsGet(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { } }
-function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, reached: 0, freed: {}, visited: { 0: 1 }, seen: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
+function freshSave() { return { money: 0, weapons: { holz: 1 }, cur: 'holz', abil: {}, checkpoint: 0, reached: 0, freed: {}, visited: { 0: 1 }, seen: {}, st: {}, quest: null, skins: {}, skin: '', rescued: {}, kills: 0, deaths: 0, time: 0, won: false, gren: 2, diff: 'normal', gear: {}, chests: {}, notes: {} }; }
 let SV = freshSave();
 const OPT = Object.assign({ sens: 1, sound: true, music: true, env: 0.35, vib: true, nums: true, weather: true, gfx: 'auto', btn: 'normal', aim: 'normal' }, lsGet(OPT_KEY) || {});
 function saveGame() { lsSet(SAVE_KEY, SV); }
@@ -265,6 +279,8 @@ const AU = {
       case 'thunder': this.dst = this.env; this.noise(t, 2.6, 300, 40, 0.5, 'lowpass', 0.7); this.tone(t, 'sine', 55, 30, 2.2, 0.2); this.noise(t + 0.15, 1.2, 900, 120, 0.2, 'lowpass'); this.dst = null; break;
       case 'caw': { const f = rand(700, 950); this.tone(t, 'sawtooth', f, f * 0.6, 0.18, 0.08); this.noise(t, 0.15, 2500, 1200, 0.1, 'bandpass', 3); } break;
       case 'dash': this.noise(t, 0.25, 400, 3000, 0.35, 'bandpass', 1.2); break;
+      case 'bark': for (const d of [0, 0.17]) { this.tone(t + d, 'sawtooth', 560, 280, 0.09, 0.1); this.noise(t + d, 0.08, 1500, 500, 0.25, 'bandpass', 2); } break;
+      case 'bite': this.noise(t, 0.07, 2200, 600, 0.22, 'bandpass', 2); break;
     }
   },
   ambient() {

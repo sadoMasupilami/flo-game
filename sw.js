@@ -19,9 +19,11 @@ const FILES = [
   'js/combat.js',
   'js/viewmodels.js',
   'js/erfolge.js',
+  'js/aufgaben.js',
   'js/geheimnisse.js',
   'js/endlos.js',
   'js/karte.js',
+  'js/leute.js',
   'js/main.js',
 ];
 

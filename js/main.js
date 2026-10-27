@@ -163,7 +163,7 @@ function dash() {
   const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
   player.dvx = (-sy * my + cy * mx) * 17; player.dvz = (-cy * my - sy * mx) * 17;
   player.dashT = 0.2; player.inv = 0.35; player.dashCd = DASH_CD; player.fovKick = 9;
-  AU.play('dash', 0.1); smokePuff(player.pos.x, 0.1, player.pos.z, 5, 0.18); achAdd('dashes');
+  AU.play('dash', 0.1); smokePuff(player.pos.x, 0.1, player.pos.z, 5, 0.18); achAdd('dashes'); stat('dashes');
 }
 function updatePlayer(dt) {
   let [mx, my] = moveInput(); const k = input.keys;
@@ -206,6 +206,8 @@ function objective(a) {
   if (safeIdx() >= 0) return 'Sicher. Hier kannst du Pause machen und einkaufen.';
   if (areaSt[5].boss) return 'Besiege die Monsterkönigin!';
   for (let k = 0; k < 6; k++) { const st = areaSt[k]; if (st.active) return `${k === 5 ? 'Portal' : 'Monsternest'} · Welle ${st.wave + 1}/3 · noch ${waveRemaining(k, st.wave)} Monster`; }
+  const nf = followers();
+  if (nf) { const p = goalPos(); return `Bring ${nf === 1 ? 'den Überlebenden' : `die ${nf} Überlebenden`} zu einem Unterschlupf · ${Math.round(Math.hypot(player.pos.x - p.x, player.pos.z - p.z))} m`; }
   if (!barrier.open && Math.hypot(player.pos.x - WX(5, 0), player.pos.z - WZ(5, -75)) < 16) return `Die Barriere fällt erst, wenn alle Nester zerstört sind (${freedCount()} von 5)`;
   const g = nextGoal(), p = goalPos(), d = Math.round(Math.hypot(player.pos.x - p.x, player.pos.z - p.z));
   if (g === 5) return `Die Barriere ist gefallen · Portal in ${d} m`;
@@ -274,7 +276,7 @@ function openShelter(i) {
 function showShop() {
   GS = 'shop'; hideOverlays(); setPlayUI(false);
   $('shopTitle').textContent = SHELTERS[curShelter].name; $('shopTrader').textContent = TRADER[curShelter];
-  const [fc, fn] = secretCounts(); $('shopFound').textContent = `Nester zerstört: ${freedCount()} von 5 · Gefunden: ${fc} von ${CHEST_SPOTS.length} Truhen · ${fn} von ${NOTES.length} Notizen von Opa`;
+  const [fc, fn] = secretCounts(); $('shopFound').textContent = `Nester zerstört: ${freedCount()} von 5 · Gefunden: ${fc} von ${CHEST_SPOTS.length} Truhen · ${fn} von ${NOTES.length} Notizen von Opa · ${Object.keys(SV.rescued || {}).length} von ${SURVIVORS.length} Überlebenden gerettet`;
   renderShop(); $('shop').hidden = false; $('shop').scrollTop = 0;
 }
 function gebiet(avail) { return `Ab Gebiet ${avail + 1}`; }
@@ -303,7 +305,7 @@ function abilCard(A, i) {
 }
 function grenCard() {
   const price = grenPrice(curShelter), full = SV.gren >= grenMax(), poor = SV.money < price, off = full || poor;
-  return `<div class="item"><div class="top"><h3>Granaten</h3><span class="cat">Wurfwaffe</span></div><p class="stat">Schaden ${fmt(GREN_DMG * HPM[curShelter])} im Umkreis · du hast ${SV.gren} von ${grenMax()}</p><p>Explodiert nach kurzer Zeit oder sobald sie ein Monster trifft.</p><div class="row"><button class="sbtn ${off ? 'poor' : 'buy'}" data-gren="1" ${off ? 'disabled' : ''}>${full ? 'Taschen voll' : `1 Granate · ${fmt(price)}`}</button></div></div>`;
+  return `<div class="item"><div class="top"><h3>Granaten</h3><span class="cat">Wurfwaffe</span></div><p class="stat">Schaden ${fmt(GREN_DMG * areaScale(HPM, curShelter))} im Umkreis · du hast ${SV.gren} von ${grenMax()}</p><p>Explodiert nach kurzer Zeit oder sobald sie ein Monster trifft.</p><div class="row"><button class="sbtn ${off ? 'poor' : 'buy'}" data-gren="1" ${off ? 'disabled' : ''}>${full ? 'Taschen voll' : `1 Granate · ${fmt(price)}`}</button></div></div>`;
 }
 function gearCard(g) {
   const lv = gearLv(g.id), avail = stockLv() >= g.avail || lv > 0, cost = lv < 4 ? g.cost[lv] : 0;
@@ -316,14 +318,16 @@ function gearCard(g) {
 }
 function renderShop() {
   $('shopMoney').textContent = fmt(SV.money);
-  $('tabW').setAttribute('aria-selected', shopTab === 'w'); $('tabA').setAttribute('aria-selected', shopTab === 'a'); $('tabG').setAttribute('aria-selected', shopTab === 'g');
-  $('shopList').innerHTML = shopTab === 'w' ? grenCard() + WEAPONS.map(weaponCard).join('') : shopTab === 'a' ? ABILITIES.map(abilCard).join('') : GEAR.map(gearCard).join('');
+  for (const [id, t] of [['tabW', 'w'], ['tabA', 'a'], ['tabG', 'g'], ['tabQ', 'q']]) $(id).setAttribute('aria-selected', shopTab === t);
+  $('shopList').innerHTML = shopTab === 'w' ? grenCard() + WEAPONS.map(weaponCard).join('') : shopTab === 'a' ? ABILITIES.map(abilCard).join('') : shopTab === 'q' ? renderQuests() : GEAR.map(gearCard).join('');
 }
 $('tabW').onclick = () => { shopTab = 'w'; renderShop(); };
 $('tabA').onclick = () => { shopTab = 'a'; renderShop(); };
 $('tabG').onclick = () => { shopTab = 'g'; renderShop(); };
+$('tabQ').onclick = () => { shopTab = 'q'; renderShop(); };
 $('shopList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.skin != null) { SV.skin = b.dataset.skin; tintVM(SV.cur); AU.play('buy'); saveGame(); renderShop(); return; }
   if (b.dataset.gear) {
     const g = GEAR.find(x => x.id === b.dataset.gear), lv = gearLv(g.id); if (lv >= 4 || SV.money < g.cost[lv]) return;
     SV.money -= g.cost[lv]; SV.gear = SV.gear || {}; SV.gear[g.id] = lv + 1;
@@ -400,7 +404,7 @@ function showMenu() {
   if (endlessBest()) $('saveInfo').textContent += ` · Endlos-Rekord: ${endlessBest()} Wellen`;
   $('verInfo').textContent = VERSION.startsWith('__') ? 'Entwicklungsversion' : `Version ${VERSION} vom ${BUILD_DATE}`;
   $('menu').hidden = false;
-  scene.fog.color.setHex(AREAS[5].fog); scene.background.setHex(AREAS[5].fog); scene.fog.density = AREAS[5].dens;
+  scene.fog.color.setHex(AREAS[5].fog); scene.background.setHex(AREAS[5].fog); scene.fog.density = AREAS[5].dens; dawn = 0; hemi.intensity = hemiBase(); hemi.color.setHex(0x5a6a84);
 }
 function tryFullscreen() {
   if (!IS_TOUCH) return;
@@ -411,9 +415,10 @@ function resetWorld(cp) {
   resetAreas(); $('bossbar').hidden = true; winT = -1; if (portal) portal.s = 1; roamT = 4;
   player.pos.set(SAFE[cp].x - 1.5, 0, SAFE[cp].z); player.yaw = 0; player.pitch = 0; player.maxHp = maxHpNow(); player.hp = player.maxHp; player.dead = false; player.hurt = 0; player.sinceHit = 99; player.inv = 0; player.dashT = 0; player.dashCd = 0; player.fovKick = 0;
   abCd.fill(0); abOn.fill(0); lastArea = -1;
-  const A = AREAS[curArea()]; scene.fog.color.setHex(A.fog); scene.background.setHex(A.fog); scene.fog.density = A.dens;
+  dawn = dawnTarget();
+  const A = AREAS[curArea()]; scene.fog.color.setHex(A.fog).lerp(DAWN_FOG, dawn * 0.55); scene.background.copy(scene.fog.color); scene.fog.density = A.dens * (1 - dawn * 0.3);
   if (!SV.weapons[SV.cur]) SV.cur = 'holz';
-  equipVM(SV.cur); syncSecrets();
+  equipVM(SV.cur); syncSecrets(); syncPeople(); questFill();
 }
 function enterGame(cp, openFirst) {
   AU.init(); tryFullscreen(); MODE = 'story';
@@ -450,6 +455,13 @@ function showWin() {
   hideOverlays(); $('win').hidden = false;
 }
 
+// ---------- Morgengrauen ----------
+// Mit jedem zerstörten Nest wird es heller; wenn die Königin fällt, geht die Sonne auf
+let dawn = 0;
+const DAWN_FOG = HAS_THREE ? new T.Color(0x4a3a52) : null, HEMI_DAWN = HAS_THREE ? new T.Color(0xa08a98) : null, _fc = HAS_THREE ? new T.Color() : null;
+function dawnTarget() { return MODE !== 'story' ? 0 : winT >= 0 ? 1 : freedCount() * 0.16; }
+function hemiBase() { return 0.85 + dawn * 0.55; }
+
 // ---------- Hauptschleife ----------
 let baseFov = 72, farMax = 90;
 // Sichtweite an den Nebel koppeln: Was im Nebel verschwindet, muss auch nicht gezeichnet werden
@@ -477,15 +489,18 @@ function frame(now) {
     updatePlayer(dt); placeCamera(dt);
     if (MODE === 'endlos') updateEndless(dt); else { updateWaves(dt); updateRoam(dt); }
     updateMonsters(dt); updateEyeGlow(); updateProjs(dt); updateAcids(dt); updatePatches(dt); updateBarricades(dt);
-    updatePickups(dt, clock); updateAbilities(dt); updateWeapon(dt, input.firing && winT < 0); updateVM(dt); updateTracers(dt); updateGrenades(dt); updateBars(); updateNums(dt); updateMaras(dt); updateSecrets(dt, clock);
+    updatePickups(dt, clock); updateAbilities(dt); updateWeapon(dt, input.firing && winT < 0); updateVM(dt); updateTracers(dt); updateGrenades(dt); updateBars(); updateNums(dt); updateMaras(dt); updateSecrets(dt, clock); updateDog(dt); updateSurvivors(dt);
     const a = curArea();
     if (a !== lastArea) {
       if (!areaSt.some(s => s.active)) showToast(`Gebiet ${a + 1}`, AREAS[a].name);
       lastArea = a;
       if (MODE === 'story' && !SV.visited[a]) { SV.visited[a] = 1; saveGame(); }
     }
-    const A = AREAS[a], tc = new T.Color(A.fog);
-    scene.fog.color.lerp(tc, Math.min(1, dt * 0.8)); scene.background.copy(scene.fog.color); scene.fog.density = lerp(scene.fog.density, A.dens, Math.min(1, dt * 0.8));
+    dawn = lerp(dawn, dawnTarget(), Math.min(1, dt * 0.4));
+    const A = AREAS[a], tc = _fc.setHex(A.fog).lerp(DAWN_FOG, dawn * 0.55);
+    scene.fog.color.lerp(tc, Math.min(1, dt * 0.8)); scene.background.copy(scene.fog.color); scene.fog.density = lerp(scene.fog.density, A.dens * (1 - dawn * 0.3), Math.min(1, dt * 0.8));
+    if (lightningT <= 0) hemi.intensity = hemiBase();
+    hemi.color.setHex(0x5a6a84).lerp(HEMI_DAWN, dawn);
     if (a === 4 && Math.random() < dt * 0.5) PG.emit(player.pos.x + rand(-12, 12), rand(0.5, 2.5), player.pos.z + rand(-14, 4), rand(-0.2, 0.2), rand(-0.1, 0.1), rand(-0.2, 0.2), rand(2, 4), 0.8, 0.9, 0.4, 0.06, 0, 0, 0, 0.8);
     if (a === 1 && Math.random() < dt * 4) PG.emit(player.pos.x + rand(-12, 12), rand(0.4, 2.2), player.pos.z + rand(-16, 6), rand(-0.3, 0.3), rand(-0.1, 0.2), rand(-0.3, 0.3), rand(2, 4), 0.75, 1, 0.45, 0.07, 0, 0, 0, 0.9);
     if (winT >= 0) { winT += dt; if (portal) portal.s = Math.max(0, 1 - winT / 2.5); if (winT > 4) showWin(); }
@@ -513,7 +528,7 @@ function frame(now) {
   if (moonLight.castShadow) { moonLight.target.position.set(camera.position.x, 0, camera.position.z - 6); moonLight.position.set(camera.position.x - 30, 50, camera.position.z + 14); }
   updateFar();
   const fk = camera.far * 0.85 / 80; // Mond und Himmel bleiben innerhalb der Sichtweite
-  if (moon) { moon.position.set(camera.position.x - 34 * fk, 30 * fk, camera.position.z - 66 * fk); moon.scale.setScalar(5 * fk); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu'; }
+  if (moon) { moon.position.set(camera.position.x - 34 * fk, 30 * fk, camera.position.z - 66 * fk); moon.scale.setScalar(5 * fk); moon.lookAt(camera.position); moon.visible = curArea() < 5 && GS !== 'menu' && dawn < 0.85; }
   if (sky) sky.scale.setScalar(fk);
   PU.uFogD.value = scene.fog.density;
   PB.update(dt); PF.update(dt); PS.update(dt); PG.update(dt);
@@ -532,7 +547,7 @@ function pickMusic() {
 // ---------- Start ----------
 function boot() {
   if (!HAS_THREE) return;
-  buildWorld(); buildMapBase(); buildViewModels(); resetAreas(); applyBtns(); applyGfx(); showMenu();
+  buildWorld(); buildPeople(); buildMapBase(); buildViewModels(); resetAreas(); applyBtns(); applyGfx(); showMenu();
   // Offline spielen: Service Worker nur auf der echten Seite (nicht im automatischen Test)
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !navigator.webdriver) navigator.serviceWorker.register('sw.js').catch(() => { });
   requestAnimationFrame(t => { last = t; frame(t); });

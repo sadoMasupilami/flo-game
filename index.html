@@ -104,6 +104,7 @@ button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 #flash{position:fixed;inset:0;z-index:2;pointer-events:none;background:#dfe8ff;opacity:0}
 #vig{position:fixed;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(150,0,12,.8));opacity:0}
 #amp{position:fixed;inset:0;z-index:3;pointer-events:none;box-shadow:inset 0 0 90px rgba(240,130,40,.55);opacity:0;transition:opacity .3s}
+#fade{position:fixed;inset:0;z-index:9;pointer-events:none;background:#000;opacity:0;transition:opacity .7s}
 #healfx{position:fixed;inset:0;z-index:3;pointer-events:none;box-shadow:inset 0 0 120px rgba(116,214,142,.6);opacity:0;transition:opacity .6s}
 #rotate{position:fixed;left:50%;top:calc(var(--st) + 92px);transform:translateX(-50%);z-index:5;pointer-events:none;background:rgba(10,9,10,.8);border:1px solid var(--line2);padding:6px 12px;font:600 14px var(--f-ui);white-space:nowrap}
 
@@ -235,9 +236,10 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 /* Karte */
 .mapwrap{margin:auto;display:flex;gap:16px 22px;align-items:center;justify-content:center;width:100%;max-width:980px}
 #mapCv{display:block;height:min(calc(100dvh - 40px - var(--st) - var(--sb)), 132vw);aspect-ratio:2/3;flex:none;background:#0b0c0b;border:1px solid var(--line2);box-shadow:0 20px 60px rgba(0,0,0,.6)}
-.mapside{display:grid;gap:10px;align-content:center;max-width:300px}
+.mapside{display:grid;gap:10px;align-content:start;max-width:320px;max-height:calc(100dvh - 32px - var(--st) - var(--sb));overflow-y:auto;-webkit-overflow-scrolling:touch}
+.maphead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
 .mapside h2{font:400 clamp(28px,5vw,40px)/1 var(--f-title);color:var(--lamp);margin:0;letter-spacing:.02em}
-.legend{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin:0;font-size:15px;color:var(--dim)}
+.legend{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:center;margin:0;font-size:15px;color:var(--dim)}
 .legend dd{margin:0}
 .legend dt{display:grid;place-items:center}
 .legend i{display:block;width:14px;height:14px;border-radius:50%;justify-self:center}
@@ -247,6 +249,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 .lg-freed{background:#14281a;border:2px solid #74d68e}
 .lg-portal{border:3px solid #d58bff;background:rgba(154,60,255,.45)}
 .lg-goal{border:2px solid #ffd166}
+.lg-surv{background:#74d68e}
 .lg-bar{height:4px!important;border-radius:0!important;background:#ff2238}
 @media (max-aspect-ratio:1/1){.mapwrap{flex-direction:column}#mapCv{height:auto;width:min(100%,62vh)}}
 #loadErr{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding-inline:24px;z-index:30;background:var(--night)}
@@ -279,6 +282,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 <div id="vig"></div>
 <div id="amp"></div>
 <div id="healfx"></div>
+<div id="fade"></div>
 <div id="achToast" role="status"><small>Erfolg freigeschaltet</small><b id="achName"></b></div>
 <div id="rotate" hidden>Dreh dein Handy quer, dann siehst du mehr.</div>
 
@@ -363,6 +367,7 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
       <button class="tab" role="tab" id="tabW" aria-selected="true">Waffen</button>
       <button class="tab" role="tab" id="tabA" aria-selected="false">Fähigkeiten</button>
       <button class="tab" role="tab" id="tabG" aria-selected="false">Ausrüstung</button>
+      <button class="tab" role="tab" id="tabQ" aria-selected="false">Aufgaben</button>
     </div>
     <div class="grid" id="shopList"></div>
     <div class="shop-foot">
@@ -408,19 +413,20 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
   <div class="mapwrap">
     <canvas id="mapCv" aria-label="Karte des Landes"></canvas>
     <div class="mapside">
-      <div><p class="eyebrow">Opas Karte</p><h2>Das Land</h2></div>
+      <div class="maphead"><div><p class="eyebrow">Opas Karte</p><h2>Das Land</h2></div><button id="btnMapBack" class="btn primary small">Zurück</button></div>
       <p class="small" id="mapInfo" style="margin:0;color:var(--ink)"></p>
       <p class="small" id="mapGoal" style="margin:0;color:#ffd166"></p>
+      <div id="mapTravel"><p class="eyebrow">Schnellreise</p><p class="small" id="mapTravelNote" style="margin:2px 0 6px"></p><div id="mapTravelList" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
       <dl class="legend">
         <dt><i class="lg-me"></i></dt><dd>Du</dd>
-        <dt><i class="lg-goal"></i></dt><dd>Nächstes Ziel</dd>
-        <dt><i class="lg-shelter"></i></dt><dd>Unterschlupf (sicher, Mara)</dd>
+        <dt><i class="lg-goal"></i></dt><dd>Ziel</dd>
+        <dt><i class="lg-shelter"></i></dt><dd>Unterschlupf</dd>
         <dt><i class="lg-nest"></i></dt><dd>Monsternest</dd>
-        <dt><i class="lg-freed"></i></dt><dd>Zerstörtes Nest</dd>
-        <dt><i class="lg-portal"></i></dt><dd>Portal der Königin</dd>
-        <dt><i class="lg-bar"></i></dt><dd>Barriere, fällt nach allen 5 Nestern</dd>
+        <dt><i class="lg-freed"></i></dt><dd>Nest zerstört</dd>
+        <dt><i class="lg-portal"></i></dt><dd>Portal</dd>
+        <dt><i class="lg-surv"></i></dt><dd>Überlebender</dd>
+        <dt><i class="lg-bar"></i></dt><dd>Barriere</dd>
       </dl>
-      <div class="actions"><button id="btnMapBack" class="btn primary">Zurück</button></div>
     </div>
   </div>
 </section>
@@ -465,9 +471,11 @@ body.bigbtn #controls{--f:118px;--b:70px;--a:66px}
 <script src="js/combat.js"></script>
 <script src="js/viewmodels.js"></script>
 <script src="js/erfolge.js"></script>
+<script src="js/aufgaben.js"></script>
 <script src="js/geheimnisse.js"></script>
 <script src="js/endlos.js"></script>
 <script src="js/karte.js"></script>
+<script src="js/leute.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

@@ -16,6 +16,8 @@ const ERFOLGE = [
   { id: 'bosse', name: 'Bosskiller', desc: 'Besiege alle 5 Zwischenbosse.', stat: 'minis', goal: 5 },
   { id: 'schatz', name: 'Schatzsucher', desc: 'Finde alle 12 versteckten Truhen.', stat: 'chests', goal: 12 },
   { id: 'chronist', name: 'Opas Tagebuch', desc: 'Finde alle 6 Notizen von Opa.', stat: 'notes', goal: 6 },
+  { id: 'retter', name: 'Retter in der Not', desc: 'Rette alle 6 Überlebenden.', stat: 'rescued', goal: 6 },
+  { id: 'helfer', name: 'Maras rechte Hand', desc: 'Erfülle 10 Aufgaben von Mara.', stat: 'quests', goal: 10 },
   { id: 'unberuehrt', name: 'Unberührbar', desc: 'Besiege einen Zwischenboss, ohne getroffen zu werden.' },
   { id: 'portal', name: 'Portal geschlossen', desc: 'Besiege die Monsterkönigin.' },
   { id: 'makellos', name: 'Makellos', desc: 'Besiege die Monsterkönigin, ohne getroffen zu werden.' },

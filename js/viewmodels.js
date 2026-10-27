@@ -91,8 +91,10 @@ function buildViewModels() {
 function tintVM(id) {
   const g = vmModels[id]; if (!g) return;
   const lv = SV.weapons[id] || 1, a = g.userData.accent;
-  a.emissive.setHex(LV_HEX[lv - 1]); a.emissiveIntensity = LV_GLOW[lv - 1];
+  a.emissive.setHex(accentHex(lv)); a.emissiveIntensity = vmGlow(lv);
 }
+// mit seltener Farbe leuchtet die Waffe immer kräftig, auch auf Stufe 1
+function vmGlow(lv) { return SV.skin ? Math.max(1.2, LV_GLOW[lv - 1]) : LV_GLOW[lv - 1]; }
 function equipVM(id) {
   for (const k in vmModels) vmModels[k].visible = k === id;
   tintVM(id);
@@ -110,13 +112,14 @@ function updateVM(dt) {
   m.position.set(px, py, pz); m.rotation.set(rx, ry, rz);
   // Leuchten und Funken
   const lv = SV.weapons[w.id] || 1, a = m.userData.accent;
-  a.emissiveIntensity = LV_GLOW[lv - 1] * (lv > 1 ? 0.85 + Math.sin(clock * 4) * 0.15 : 1) + (abOn[1] > 0 ? 0.8 : 0);
+  if (SV.skin) a.emissive.setHex(accentHex(lv));
+  a.emissiveIntensity = vmGlow(lv) * (lv > 1 || SV.skin ? 0.85 + Math.sin(clock * 4) * 0.15 : 1) + (abOn[1] > 0 ? 0.8 : 0);
   if (m.userData.pilot) m.userData.pilot.scale.setScalar(0.03 + Math.random() * 0.012);
-  const fxRate = (lv >= 3 ? 5 : 0) + (abOn[1] > 0 ? 18 : 0) + (abOn[2] > 0 ? 22 : 0);
+  const fxRate = (lv >= 3 || SV.skin ? 5 : 0) + (abOn[1] > 0 ? 18 : 0) + (abOn[2] > 0 ? 22 : 0);
   if (fxRate && Math.random() < dt * fxRate) {
     _fx.copy(m.userData.fx); m.localToWorld(_fx); _fx.x += rand(-0.05, 0.05); _fx.y += rand(-0.05, 0.05);
     if (abOn[2] > 0 && Math.random() < 0.6) PF.emit(_fx.x, _fx.y, _fx.z, rand(-0.2, 0.2), rand(0.4, 1), rand(-0.2, 0.2), rand(0.25, 0.45), 1, 0.5, 0.12, rand(0.05, 0.1), -1, -0.5, 1, 1);
-    else { if (abOn[1] > 0 && Math.random() < 0.6) _lc.setHex(0xffc040); else _lc.setHex(LV_HEX[lv - 1]); PG.emit(_fx.x, _fx.y, _fx.z, rand(-0.3, 0.3), rand(0.2, 0.8), rand(-0.3, 0.3), rand(0.3, 0.6), _lc.r, _lc.g, _lc.b, rand(0.025, 0.05), -0.5, 0, 1, 1); }
+    else { if (abOn[1] > 0 && Math.random() < 0.6) _lc.setHex(0xffc040); else _lc.setHex(accentHex(lv)); PG.emit(_fx.x, _fx.y, _fx.z, rand(-0.3, 0.3), rand(0.2, 0.8), rand(-0.3, 0.3), rand(0.3, 0.6), _lc.r, _lc.g, _lc.b, rand(0.025, 0.05), -0.5, 0, 1, 1); }
   }
   updateFxRings(dt);
 }

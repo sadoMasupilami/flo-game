@@ -56,10 +56,10 @@ function spawnMonster(type, x, z, opt) {
   if (elite) { const ring = new T.Mesh(G.ring, mat(0xff2030, { basic: true, add: true, op: 0.7 })); ring.scale.setScalar(2.2); ring.position.y = 0.05; g.add(ring); P.aura = ring; skin.emissive.setHex(0x220000); }
   const m = {
     type, def, g, P, skin, boss, elite, sc, a,
-    hp: def.hp * HPM[a] * (mini ? mini.hp : elite ? 6 : 1) * diff().hp * (opt.mult ? opt.mult.hp : 1), dmg: def.dmg * DMGM[a] * (mini ? 1.3 : elite ? 1.4 : 1) * diff().dmg * (opt.mult ? opt.mult.dmg : 1),
-    spd: def.spd * (1 + a * 0.04) * (mini ? 0.8 : elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
+    hp: def.hp * areaScale(HPM, a) * (mini ? mini.hp : elite ? 6 : 1) * diff().hp * (opt.mult ? opt.mult.hp : 1), dmg: def.dmg * areaScale(DMGM, a) * (mini ? 1.3 : elite ? 1.4 : 1) * diff().dmg * (opt.mult ? opt.mult.dmg : 1),
+    spd: def.spd * (1 + areaLevel(a) * 0.04) * (mini ? 0.8 : elite ? 0.92 : 1), r: def.r * sc, range: def.ranged ? def.range : def.range * Math.sqrt(sc),
     cd: rand(0.3, 1), state: 'rise', t: 0, phase: rand(0, TAU), burn: 0, burnDps: 0, flash: 0, wind: 0, windMax: 0.4, strike: 0,
-    gold: Math.round(def.gold * GOLDM[a] * (mini ? 10 : elite ? 6 : 1) * GOLD * diff().gold), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
+    gold: Math.round(def.gold * areaScale(GOLDM, a) * (mini ? 10 : elite ? 6 : 1) * GOLD * diff().gold), stuck: 0, detour: 0, dx: 0, dz: 0, side: Math.random() < 0.5 ? -1 : 1,
     wa: opt.wa == null ? -1 : opt.wa, wj: opt.wj == null ? -1 : opt.wj, roam: !!opt.roam, hits: HIT[type], blocked: null, target: null,
     atkT: 2, sumT: 8, atk: '', deadT: 0, kvx: 0, kvz: 0, vy: 0, flinch: 0, spin: 0, numAcc: 0, numHead: false, numT: 0,
   };
@@ -119,7 +119,7 @@ let shieldHint = false;
 function damageMonster(m, amount, at, head, kb, src) {
   if (m.state === 'dead') return false;
   // Schildträger: Treffer von vorn prallen ab, Explosionen und Feuer nicht
-  if (m.type === 'schild' && src !== 'expl' && src !== 'fire') {
+  if (m.type === 'schild' && src !== 'expl' && src !== 'fire' && src !== 'dog') {
     const f = m.g.rotation.y, dx = player.pos.x - m.g.position.x, dz = player.pos.z - m.g.position.z, d = Math.hypot(dx, dz) || 1;
     if ((Math.sin(f) * dx + Math.cos(f) * dz) / d > 0.45) {
       amount *= 0.1; kb = (kb || 0) * 0.3; head = false;
@@ -132,7 +132,7 @@ function damageMonster(m, amount, at, head, kb, src) {
     if (Math.random() < 0.22 && m.hp - amount > 0) blinkShadow(m);
   }
   m.hp -= amount; m.flash = 0.1; m.numAcc += amount; if (head) m.numHead = true;
-  showHitmark(head); if (head) achAdd('heads');
+  if (src !== 'dog') showHitmark(head); if (head) { achAdd('heads'); stat('heads'); }
   if (kb) knockMonster(m, kb, amount);
   if (at) bloodBurst(at.x, at.y, at.z, Math.min(18, 4 + (amount / 10) | 0), m.boss ? 1.4 : 1);
   if (brandOn()) applyBurn(m, amount * burnFrac(), burnDur());
@@ -145,7 +145,7 @@ function killMonster(m) {
   m.skin.emissive.setHex(0);
   m.P.eyes.forEach(e => { e.visible = false; }); if (m.P.aura) m.P.aura.visible = false;
   if (m.gold) { SV.money += m.gold; popGold(m.gold); AU.play('coin', 0.05); }
-  SV.kills++; achAdd('kills'); if (SV.cur === 'holz') achAdd('killHolz');
+  SV.kills++; achAdd('kills'); if (SV.cur === 'holz') achAdd('killHolz'); stat('k_' + m.type); stat('kills');
   const p = m.g.position;
   bloodBurst(p.x, p.y + 0.9 * m.sc, p.z, m.boss ? 80 : 26, m.boss ? 2.4 : 1.3);
   addDecal(p.x, p.z, rand(1.2, 2.2) * m.sc * (m.boss ? 2 : 1), 0x3a0406);
@@ -388,11 +388,11 @@ function abortWave(a) {
   showMsg('Die Monster ziehen sich ins Nest zurück');
 }
 function freeNest(a) {
-  const st = areaSt[a]; st.done = true; SV.freed[a] = 1; saveGame();
+  const st = areaSt[a]; st.done = true; SV.freed[a] = 1; stat('nests'); saveGame();
   burstNest(nests[a]); AU.play('clear'); shake = Math.max(shake, 0.3);
   const n = freedCount();
   if (n >= 5) { setBarrier(true); AU.play('boom', 0.2); showToast('Alle Nester zerstört', 'Die Barriere ist gefallen'); showMsg('Auf zum Portal!'); }
-  else { showToast(`${AREAS[a].name} ist befreit`, 'Nest zerstört'); showMsg(`${n} von 5 Nestern zerstört`); }
+  else { showToast(`${AREAS[a].name} ist befreit`, 'Nest zerstört'); showMsg(`${n} von 5 Nestern zerstört · der Himmel wird heller`); }
 }
 function updateWaves(dt) {
   for (let a = 0; a < 6; a++) {

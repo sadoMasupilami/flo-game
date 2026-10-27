@@ -41,7 +41,7 @@ function strike() {
 function updateWeather(dt) {
   if (!rain) return;
   const w = weatherNow(), c = camera.position, max = OPT.gfx === 'schnell' ? RAIN_N / 2 : RAIN_N;
-  rainAmt = lerp(rainAmt, w.rain, Math.min(1, dt * 0.5));
+  rainAmt = lerp(rainAmt, w.rain * (1 - dawn * 0.7), Math.min(1, dt * 0.5)); // gegen Morgen lässt der Regen nach
   const n = Math.floor(max * rainAmt), { pos, drops } = rain.userData;
   for (let i = 0; i < n; i++) {
     let x = drops[i * 3], y = drops[i * 3 + 1] - dt * 22, z = drops[i * 3 + 2];
@@ -57,13 +57,13 @@ function updateWeather(dt) {
   if (rainAmt > 0.1 && Math.random() < dt * 40 * rainAmt) PG.emit(c.x + rand(-8, 8), 0.05, c.z + rand(-8, 8), 0, rand(0.5, 1), 0, 0.2, 0.7, 0.75, 0.85, 0.05, 6, 0, 0, 0.6);
   AU.rain(rainAmt);
   // Gewitter
-  if (w.storm) { nextBolt -= dt; if (nextBolt <= 0) { strike(); nextBolt = rand(7, 18); } }
+  if (w.storm && dawn < 0.5) { nextBolt -= dt; if (nextBolt <= 0) { strike(); nextBolt = rand(7, 18); } }
   if (lightningT > 0) {
     lightningT -= dt;
     const t = 0.55 - lightningT, k = (t < 0.08 ? 1 : t < 0.16 ? 0.2 : t < 0.24 ? 0.8 : Math.max(0, 1 - (t - 0.24) * 3.5));
-    hemi.intensity = 0.85 + k * 2.2; moonLight.intensity = 0.45 + k * 1.5;
+    hemi.intensity = hemiBase() + k * 2.2; moonLight.intensity = 0.45 + k * 1.5;
     $('flash').style.opacity = (k * 0.35).toFixed(2);
-    if (lightningT <= 0) { hemi.intensity = 0.85; moonLight.intensity = 0.45; $('flash').style.opacity = 0; }
+    if (lightningT <= 0) { hemi.intensity = hemiBase(); moonLight.intensity = 0.45; $('flash').style.opacity = 0; }
   }
   if (boltT > 0) { boltT -= dt; bolt.material.opacity = Math.max(0, boltT * 4); }
   for (let i = thunders.length - 1; i >= 0; i--) { thunders[i] -= dt; if (thunders[i] <= 0) { AU.play('thunder', 0.5); thunders.splice(i, 1); } }

@@ -123,6 +123,7 @@ function checkOfflineList() {
         chests.forEach(c => { if (!near(c.x, c.z, 1.4)) out.push('Truhe ' + c.id); });
         notes.forEach(n => { if (!near(n.x, n.z, 1.3)) out.push('Notiz ' + n.id); });
         if (!near(WX(5, 0), WZ(5, -120), 2)) out.push('Portalplatz');
+        survivors.forEach(p => { if (!near(p.home[0], p.home[1], 2.5)) out.push('Überlebender ' + p.id); });
         return out;
       });
       check(!bad.length, 'Nicht erreichbar: ' + bad.join(', '));
@@ -140,6 +141,44 @@ function checkOfflineList() {
     await step('Streuner tauchen in der offenen Welt auf', async () => {
       await ev(() => { clearMonsters(); player.pos.set(WX(3, -10), 0, WZ(3, -30)); roamT = 0; });
       await until(() => monsters.some(m => m.roam), 20000);
+    });
+
+    await step('Bruno beißt Monster und bellt, wenn eins von hinten kommt', async () => {
+      await ev(() => { clearMonsters(); roamT = 99; player.pos.set(WX(3, -12), 0, WZ(3, -30)); player.yaw = 0; player.inv = 99; dog.pos.set(player.pos.x + 1, 0, player.pos.z); dog.barkCd = 0;
+        const m = spawnMonster('ghul', player.pos.x, player.pos.z + 3, { area: 3 }); m.state = 'chase'; m.g.position.y = 0; m.spd = 0; m.cd = 99; m.hp = m.maxHp = 1e6; });
+      await until(() => $('msg').textContent.includes('Bruno'), 20000);
+      await until(() => monsters[0].hp < monsters[0].maxHp, 20000);
+      await ev(() => { clearMonsters(); player.inv = 0; });
+    });
+
+    await step('Überlebende finden, mitnehmen und im Unterschlupf retten', async () => {
+      const m0 = await ev(() => { const p = survivors[0]; player.pos.set(p.pos.x + 1.5, 0, p.pos.z); return SV.money; });
+      await until(() => survivors[0].state === 'follow');
+      check(await ev(() => $('objective').textContent.startsWith('Bring')), 'Ziel zeigt nicht zum Unterschlupf');
+      await ev(() => { player.pos.set(SAFE[0].x, 0, SAFE[0].z); bringFollowers(); });
+      await until(() => survivors[0].state === 'saved');
+      check(await ev(m0 => SV.rescued.s0 === 1 && SV.money > m0 && !survivors[0].g.visible, m0), 'Rettung hat nicht geklappt');
+    });
+
+    await step('Schnellreise über die Karte, aber nicht mitten im Kampf', async () => {
+      await ev(() => { SV.seen[2] = 1; player.pos.set(WX(1, 0), 0, WZ(1, -30)); });
+      await page.keyboard.press('KeyM'); await until(() => GS === 'map');
+      await page.click('[data-go="2"]'); await until(() => GS === 'play');
+      check(await ev(() => Math.hypot(player.pos.x - SAFE[2].x, player.pos.z - SAFE[2].z) < 3 && Math.hypot(dog.pos.x - player.pos.x, dog.pos.z - player.pos.z) < 4 && SV.checkpoint === 2), 'Schnellreise hat nicht geklappt');
+      await ev(() => { Object.assign(areaSt[2], { active: true, queue: [{ t: 'kriecher' }], spawnT: 999 }); });
+      await page.keyboard.press('KeyM'); await until(() => GS === 'map');
+      check(await ev(() => document.querySelector('[data-go]').disabled), 'Schnellreise im Kampf möglich');
+      await ev(() => { Object.assign(areaSt[2], { active: false, queue: [], wave: 0, pause: 99 }); });
+      await page.keyboard.press('KeyM'); await until(() => GS === 'play');
+    });
+
+    await step('Monster passen sich der Ausrüstung an', async () => {
+      const r = await ev(() => {
+        const keep = SV.weapons; SV.weapons = { holz: 1 }; const weak = areaLevel(5);
+        SV.weapons = { holz: 1, rakete: 4 }; const strong = areaLevel(0); SV.weapons = keep;
+        return { weak, strong };
+      });
+      check(r.weak < 5 && r.weak >= 3.5 && r.strong > 0 && r.strong <= 1, 'Anpassung stimmt nicht: ' + JSON.stringify(r));
     });
 
     await step('Monsternest: Welle startet, Monster erscheinen', async () => {
@@ -177,9 +216,12 @@ function checkOfflineList() {
       await until(() => !areaSt[1].active && !monsters.some(m => m.wa === 1 && m.state !== 'dead'));
     });
 
-    await step('Barriere fällt, wenn alle fünf Nester zerstört sind', async () => {
+    await step('Barriere fällt nach fünf Nestern, und der Morgen graut', async () => {
+      const d0 = await ev(() => dawn);
       await ev(() => { clearMonsters(); for (let a = 1; a < 5; a++) freeNest(a); });
       check(await ev(() => barrier.open && barrier.s.off && freedCount() === 5), 'Barriere ist nicht offen');
+      await until(() => dawn > 0.4 && sky.material.uniforms.uDawn.value > 0.4, 30000);
+      check(await ev(d0 => dawnTarget() === 0.8 && dawn > d0, d0), 'Es wird nicht heller');
     });
 
     await step('Endboss erscheint, Sieg-Bildschirm', async () => {
@@ -212,7 +254,7 @@ function checkOfflineList() {
     });
 
     await step('Neue Monster: Krähen fliegen, Schild blockt, Platzer explodiert, Schatten ist unsichtbar', async () => {
-      await ev(() => { clearMonsters(); roamT = 99; const bx = WX(0, 0), bz = WZ(0, -12); player.pos.set(bx, 0, bz); player.hp = player.maxHp; player.inv = 99;
+      await ev(() => { clearMonsters(); roamT = 99; dog.biteCd = 99; const bx = WX(0, 0), bz = WZ(0, -12); player.pos.set(bx, 0, bz); player.hp = player.maxHp; player.inv = 99;
         for (const [t, x, z] of [['platzer', -3, -9], ['schild', 0.5, -10], ['schatten', 3, -18]]) { const m = spawnMonster(t, bx + x, bz + z, { area: 2 }); m.spd = 0; m.cd = 99; m.state = 'chase'; m.g.position.y = 0; }
         spawnGroup('kraehe', bx, bz - 12, { area: 2 }); });
       await page.waitForTimeout(1500);
@@ -258,6 +300,17 @@ function checkOfflineList() {
       await page.click('#storyBtn'); await until(() => GS === 'shop');
       await page.click('#btnMapS'); await until(() => GS === 'map');
       await page.click('#btnMapBack'); await until(() => GS === 'shop');
+      await page.click('#btnLeave'); await until(() => GS === 'play');
+    });
+
+    await step('Nebenaufgaben: Belohnung und seltene Waffenfarbe', async () => {
+      const m0 = await ev(() => { questFill(); return SV.money; });
+      await ev(() => { for (let k = 0; k < 40 && !SV.skins.gold; k++) { const a = SV.quest.act[0], d = QUESTS[a.q]; stat(d.st, d.n); } });
+      check(await ev(m0 => SV.money > m0 && SV.skins.gold === 1 && SV.quest.done >= 6, m0), 'Aufgaben geben keine Belohnung');
+      await ev(() => { SV.seen.mara = 1; SV.seen[2] = 1; openShelter(2); });
+      await until(() => GS === 'shop');
+      await page.click('#tabQ'); await page.click('[data-skin="gold"]');
+      check(await ev(() => SV.skin === 'gold' && vmModels[SV.cur].userData.accent.emissive.getHex() === SKINS.gold.hex), 'Waffenfarbe nicht übernommen');
       await page.click('#btnLeave'); await until(() => GS === 'play');
     });
 

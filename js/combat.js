@@ -61,7 +61,7 @@ function addPatch(x, z, r, dur) {
   if (patches.length > 12) { const p = patches.shift(); scene.remove(p.mesh); p.m.dispose(); }
   const m = new T.MeshBasicMaterial({ map: TEX.glow, color: 0xff6a20, transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false });
   const mesh = new T.Mesh(G.plane, m); mesh.rotation.x = -Math.PI / 2; mesh.position.set(x, 0.05, z); mesh.scale.set(r * 2.6, r * 2.6, 1); scene.add(mesh);
-  patches.push({ x, z, r, t: dur, max: dur, mesh, m, dps: 14 * HPM[curArea()] });
+  patches.push({ x, z, r, t: dur, max: dur, mesh, m, dps: 14 * areaScale(HPM, curArea()) });
 }
 function updatePatches(dt) {
   for (let i = patches.length - 1; i >= 0; i--) {
@@ -157,7 +157,7 @@ function explode(p, dmg, R, patch) {
     const d = Math.hypot(m.g.position.x - p.x, m.g.position.z - p.z) - m.r;
     if (d < R) { launchMonster(m, p.x, p.z, 14 * (1 - Math.max(0, d) / R) + 3); _c.set(m.g.position.x, m.g.position.y + m.sc, m.g.position.z); if (damageMonster(m, dmg * (1 - 0.6 * Math.max(0, d) / R), _c, false, 0, 'expl')) killed++; }
   }
-  achMax('multi', killed);
+  achMax('multi', killed); if (killed) stat('k_expl', killed);
 }
 
 // ---------- Geschosse ----------
@@ -278,7 +278,7 @@ function clearAcids() { for (const a of acids) scene.remove(a.mesh); acids.lengt
 function curWeapon() { return W_BY[SV.cur] || W_BY.holz; }
 function doFire(w, lv) {
   const dmg = w.dmg * DMG_L[lv - 1] * ampMult();
-  tracerCol = lv > 1 ? LV_HEX[lv - 1] : 0xffd27a;
+  tracerCol = lv > 1 || SV.skin ? accentHex(lv) : 0xffd27a;
   camera.getWorldDirection(_d);
   const o = camera.position;
   const sp4 = lv === 4;
@@ -398,7 +398,7 @@ function throwGrenade() {
   const led = part(mesh, G.sphLo, mat(0xff2020, { basic: true, fog: false }), 0, 0.12, 0, 0.06, 0.06, 0.06);
   mesh.position.copy(camera.position).addScaledVector(_d, 0.5); mesh.position.y -= 0.2;
   scene.add(mesh);
-  grenades.push({ mesh, led, vel, t: 1.8, dmg: GREN_DMG * HPM[curArea()] * ampMult() });
+  grenades.push({ mesh, led, vel, t: 1.8, dmg: GREN_DMG * areaScale(HPM, curArea()) * ampMult() });
   vmKick = 0.5; AU.play('throw');
 }
 function updateGrenades(dt) {

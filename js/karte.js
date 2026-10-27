@@ -31,7 +31,41 @@ function buildMapBase() {
 
 // ---------- Was auf der Karte steht ----------
 function nextGoal() { for (let a = 0; a < 5; a++) if (!SV.freed[a]) return a; return 5; }
-function goalPos() { const n = nests[nextGoal()]; return n.a === 5 ? { x: WX(5, 0), z: WZ(5, -100) } : n; }
+// mit Überlebenden im Schlepptau ist der nächste Unterschlupf das Ziel
+function nearestShelter() { let b = SAFE[0], bd = 1e9; for (const s of SAFE) { const d = Math.hypot(s.x - player.pos.x, s.z - player.pos.z); if (d < bd) { bd = d; b = s; } } return b; }
+function goalPos() { if (followers()) return nearestShelter(); const n = nests[nextGoal()]; return n.a === 5 ? { x: WX(5, 0), z: WZ(5, -100) } : n; }
+function iconSurvivor(g, x, y, s, found) {
+  g.fillStyle = found ? '#74d68e' : '#ffd166'; g.strokeStyle = '#08140a'; g.lineWidth = Math.max(1, s * 0.1);
+  g.beginPath(); g.arc(x, y, s * 0.32, 0, TAU); g.fill(); g.stroke();
+}
+// Unbekannte Überlebende zeigt die Minikarte erst aus der Nähe, gefundene immer
+function drawPeople(g, at, s, near) {
+  if (MODE !== 'story') return;
+  for (const p of survivors) {
+    if (p.state === 'saved' || (p.state === 'wait' && Math.hypot(p.pos.x - player.pos.x, p.pos.z - player.pos.z) > near)) continue;
+    const [x, y] = at(p.pos.x, p.pos.z); iconSurvivor(g, x, y, s, p.state !== 'wait');
+  }
+  if (dog) { const [x, y] = at(dog.pos.x, dog.pos.z); g.fillStyle = '#c08a50'; g.beginPath(); g.arc(x, y, s * 0.2, 0, TAU); g.fill(); }
+}
+// Schnellreise zu Unterschlüpfen, die man schon kennt
+function shelterKnown(i) { return i === 0 || i === SV.checkpoint || !!SV.seen[i]; }
+function travelTo(i) {
+  if (MODE !== 'story' || areaSt.some(s => s.active) || !shelterKnown(i)) return;
+  $('map').hidden = true; $('shop').hidden = true;
+  for (let k = monsters.length - 1; k >= 0; k--) if (monsters[k].roam || monsters[k].wa === -1) removeMonster(k);
+  player.pos.set(SAFE[i].x - 1.5, 0, SAFE[i].z); player.yaw = 0; player.pitch = 0;
+  bringFollowers();
+  SV.checkpoint = i; lastArea = curArea(); SV.visited[lastArea] = 1; saveGame();
+  GS = 'play'; resetInput(); setPlayUI(true); equipVM(SV.cur);
+  const f = $('fade'); f.style.transition = 'none'; f.style.opacity = 1; requestAnimationFrame(() => { f.style.transition = ''; f.style.opacity = 0; });
+  AU.play('dash'); showToast('Schnellreise', SHELTERS[i].name);
+}
+function renderTravel() {
+  const fight = areaSt.some(s => s.active), here = safeIdx();
+  $('mapTravel').hidden = MODE !== 'story';
+  $('mapTravelList').innerHTML = SHELTERS.map((s, i) => shelterKnown(i) && i !== here ? `<button class="sbtn buy" data-go="${i}" ${fight ? 'disabled' : ''}>${s.name}</button>` : '').join('');
+  $('mapTravelNote').textContent = fight ? 'Erst nach dem Kampf.' : 'Mara kennt sichere Wege zu jedem Unterschlupf, den du schon gefunden hast.';
+}
 // kleine Zeichen, mit dem Mittelpunkt bei (x, y)
 function iconShelter(g, x, y, s) {
   g.fillStyle = '#f0ae4e'; g.strokeStyle = '#1a1206'; g.lineWidth = Math.max(1, s * 0.12);
@@ -82,6 +116,7 @@ function drawMini(dt) {
   const pp = at(WX(5, 0), WZ(5, -127)); iconPortal(g, pp[0], pp[1], s, t);
   for (const n of nests) if (n.a < 5) { const [x, y] = at(n.x, n.z); iconNest(g, x, y, s, !!SV.freed[n.a], t); }
   for (const sh of SAFE) { const [x, y] = at(sh.x + 4, sh.z); iconShelter(g, x, y, s); }
+  drawPeople(g, at, s, 30);
   for (const m of monsters) {
     if (m.state === 'dead' || m.vis < 0.3) continue;
     const [x, y] = at(m.g.position.x, m.g.position.z);
@@ -108,9 +143,10 @@ function openMap(from) {
   if (mapFrom === 'play') { resetInput(); AU.flame(false); flameOn = false; setPlayUI(false); }
   hideOverlays(); GS = 'map'; $('map').hidden = false;
   const [fc, fn] = secretCounts();
-  $('mapInfo').textContent = MODE === 'endlos' ? 'Endlos-Modus: Die Monster kommen überall hin.' : `Nester zerstört: ${freedCount()} von 5 · Truhen ${fc} von ${CHEST_SPOTS.length} · Notizen ${fn} von ${NOTES.length}`;
+  $('mapInfo').textContent = MODE === 'endlos' ? 'Endlos-Modus: Die Monster kommen überall hin.' : `Nester zerstört: ${freedCount()} von 5 · Truhen ${fc} von ${CHEST_SPOTS.length} · Notizen ${fn} von ${NOTES.length} · Gerettet ${Object.keys(SV.rescued || {}).length} von ${SURVIVORS.length}`;
   const g = nextGoal();
   $('mapGoal').textContent = MODE === 'endlos' ? '' : g < 5 ? `Nächstes Ziel: das Nest im Gebiet ${g + 1} · ${AREAS[g].name}` : barrier.open ? 'Die Barriere ist gefallen. Auf zum Portal!' : '';
+  renderTravel();
   requestAnimationFrame(drawBigMap);
 }
 function closeMap() {
@@ -148,9 +184,11 @@ function drawBigMap() {
   for (const n of nests) if (n.a < 5) { const [x, y] = at(n.x, n.z); iconNest(g, x, y, s * 1.3, !!SV.freed[n.a], t); }
   for (const sh of SAFE) { const [x, y] = at(sh.x + 4, sh.z); iconShelter(g, x, y, s * 1.2); }
   if (MODE === 'story') { const gp = goalPos(), [x, y] = at(gp.x, gp.z); iconGoal(g, x, y, s * 1.5, t); }
+  drawPeople(g, at, s * 1.4, 0);
   const [px, py] = at(player.pos.x, player.pos.z); iconPlayer(g, px, py, s * 1.4, -player.yaw);
 }
 
 $('mini').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); AU.init(); openMap('play'); });
 $('btnMapBack').onclick = closeMap;
+$('mapTravelList').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !b.disabled) travelTo(+b.dataset.go); });
 $('btnMapS').onclick = () => openMap('shop');

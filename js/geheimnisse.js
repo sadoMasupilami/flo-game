@@ -54,7 +54,7 @@ function syncSecrets() {
 function openChest(c) {
   SV.chests[c.id] = 1; c.anim = 0.01;
   const gold = Math.round(60 * GOLDM[c.a] * GOLD * diff().gold);
-  SV.money += gold; popGold(gold); AU.play('buy'); AU.play('coin');
+  SV.money += gold; popGold(gold); AU.play('buy'); AU.play('coin'); stat('chests');
   for (let i = 0; i < 24; i++) PG.emit(c.x + rand(-0.3, 0.3), 0.6, c.z + rand(-0.3, 0.3), rand(-1.5, 1.5), rand(1.5, 4), rand(-1.5, 1.5), rand(0.6, 1), 1, 0.8, 0.3, rand(0.05, 0.1), 7, 0, 0, 1);
   showMsg(`Truhe gefunden! +${gold} Münzen`);
   achMax('chests', secretCounts()[0]); saveGame();
